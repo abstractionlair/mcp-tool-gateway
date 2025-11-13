@@ -43,6 +43,29 @@ describe('gateway endpoints', () => {
     expect(res.body.result).toBeTruthy()
   })
 
+  it('returns tools in Gemini function_declarations format', async () => {
+    const res = await request(app).get('/tools/gemini').query({ server: 'gtd-graph-memory' })
+    expect(res.status).toBe(200)
+    expect(res.body).toHaveProperty('function_declarations')
+    expect(Array.isArray(res.body.function_declarations)).toBe(true)
+
+    // Verify structure of Gemini function declarations
+    const declarations = res.body.function_declarations
+    expect(declarations.length).toBeGreaterThan(0)
+
+    const createNodeDecl = declarations.find((d: any) => d.name === 'create_node')
+    expect(createNodeDecl).toBeTruthy()
+    expect(createNodeDecl).toHaveProperty('name')
+    expect(createNodeDecl).toHaveProperty('description')
+    expect(createNodeDecl).toHaveProperty('parameters')
+    expect(createNodeDecl.parameters).toHaveProperty('type', 'object')
+    expect(createNodeDecl.parameters).toHaveProperty('properties')
+
+    // Verify query_nodes is also present
+    const queryNodesDecl = declarations.find((d: any) => d.name === 'query_nodes')
+    expect(queryNodesDecl).toBeTruthy()
+  })
+
   it('can create ontology and then create a task', async () => {
     // Use a unique base path per test to avoid ontology collisions
     const uniqueBase = path.join(process.cwd(), '.tmp', 'test-data-' + Date.now())
