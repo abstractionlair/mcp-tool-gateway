@@ -255,6 +255,104 @@ describe('GeminiAdapter', () => {
     })
   })
 
+  describe('translateInvocation', () => {
+    it('translates Gemini function call to MCP format', () => {
+      const geminiCall = {
+        name: 'query_nodes',
+        args: {
+          query: 'test query',
+          limit: 10,
+        },
+      }
+
+      const result = adapter.translateInvocation(geminiCall)
+
+      expect(result).toEqual({
+        name: 'query_nodes',
+        arguments: {
+          query: 'test query',
+          limit: 10,
+        },
+      })
+    })
+
+    it('handles missing args field', () => {
+      const geminiCall = {
+        name: 'create_node',
+      }
+
+      const result = adapter.translateInvocation(geminiCall)
+
+      expect(result).toEqual({
+        name: 'create_node',
+        arguments: {},
+      })
+    })
+
+    it('handles empty args object', () => {
+      const geminiCall = {
+        name: 'list_nodes',
+        args: {},
+      }
+
+      const result = adapter.translateInvocation(geminiCall)
+
+      expect(result).toEqual({
+        name: 'list_nodes',
+        arguments: {},
+      })
+    })
+
+    it('throws error for invalid call object', () => {
+      expect(() => adapter.translateInvocation(null)).toThrow('Invalid Gemini function call')
+      expect(() => adapter.translateInvocation(undefined)).toThrow('Invalid Gemini function call')
+      expect(() => adapter.translateInvocation('string')).toThrow('Invalid Gemini function call')
+    })
+
+    it('throws error for missing name field', () => {
+      expect(() => adapter.translateInvocation({})).toThrow('missing or invalid "name" field')
+      expect(() => adapter.translateInvocation({ args: {} })).toThrow('missing or invalid "name" field')
+    })
+
+    it('throws error for invalid name field', () => {
+      expect(() => adapter.translateInvocation({ name: 123 })).toThrow('missing or invalid "name" field')
+      expect(() => adapter.translateInvocation({ name: null })).toThrow('missing or invalid "name" field')
+    })
+  })
+
+  describe('formatResult', () => {
+    it('returns result as-is for simple objects', () => {
+      const mcpResult = { success: true, data: 'test' }
+      const result = adapter.formatResult(mcpResult)
+      expect(result).toEqual({ success: true, data: 'test' })
+    })
+
+    it('returns result as-is for arrays', () => {
+      const mcpResult = [1, 2, 3, 4, 5]
+      const result = adapter.formatResult(mcpResult)
+      expect(result).toEqual([1, 2, 3, 4, 5])
+    })
+
+    it('returns result as-is for nested objects', () => {
+      const mcpResult = {
+        nodes: [
+          { id: '1', content: 'test1' },
+          { id: '2', content: 'test2' },
+        ],
+        count: 2,
+      }
+      const result = adapter.formatResult(mcpResult)
+      expect(result).toEqual(mcpResult)
+    })
+
+    it('returns result as-is for primitives', () => {
+      expect(adapter.formatResult('string')).toBe('string')
+      expect(adapter.formatResult(123)).toBe(123)
+      expect(adapter.formatResult(true)).toBe(true)
+      expect(adapter.formatResult(null)).toBe(null)
+    })
+  })
+
   describe('provider name', () => {
     it('has correct provider name', () => {
       expect(adapter.name).toBe('gemini')

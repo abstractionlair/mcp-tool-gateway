@@ -1,4 +1,4 @@
-import { ProviderAdapter, MCPTool } from './types.js'
+import { ProviderAdapter, MCPTool, MCPToolCall } from './types.js'
 
 /**
  * Gemini function declaration schema
@@ -62,6 +62,37 @@ export class GeminiAdapter implements ProviderAdapter {
     return {
       function_declarations: mcpTools.map(tool => this.translateSchema(tool)),
     }
+  }
+
+  /**
+   * Translate Gemini function call to MCP tool call format
+   *
+   * Gemini sends function calls as: { name: string, args: object }
+   * MCP expects: { name: string, arguments: object }
+   */
+  translateInvocation(providerCall: any): MCPToolCall {
+    if (!providerCall || typeof providerCall !== 'object') {
+      throw new Error('Invalid Gemini function call: must be an object')
+    }
+
+    if (!providerCall.name || typeof providerCall.name !== 'string') {
+      throw new Error('Invalid Gemini function call: missing or invalid "name" field')
+    }
+
+    return {
+      name: providerCall.name,
+      arguments: providerCall.args ?? {},
+    }
+  }
+
+  /**
+   * Format MCP execution result for Gemini
+   *
+   * Gemini expects function responses as plain JSON objects
+   * For now, we return the MCP result directly
+   */
+  formatResult(mcpResult: any): any {
+    return mcpResult
   }
 
   /**

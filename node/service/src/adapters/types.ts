@@ -12,6 +12,15 @@ export interface MCPTool {
 }
 
 /**
+ * MCP tool invocation format
+ * Used to call tools via the MCP client
+ */
+export interface MCPToolCall {
+  name: string
+  arguments: Record<string, any>
+}
+
+/**
  * Base interface for provider-specific adapters
  * Each adapter translates between MCP tool schemas and provider-specific formats
  */
@@ -34,4 +43,18 @@ export interface ProviderAdapter {
    * @returns Provider-specific tools response (e.g., { function_declarations: [...] })
    */
   translateAllTools(mcpTools: MCPTool[]): any
+
+  /**
+   * Translate provider-specific function call to MCP format
+   * @param providerCall Provider-specific call format (e.g., { name, args } for Gemini)
+   * @returns MCP tool call format
+   */
+  translateInvocation(providerCall: any): MCPToolCall
+
+  /**
+   * Format MCP execution result for provider
+   * @param mcpResult Raw result from MCP tool execution
+   * @returns Provider-specific result format
+   */
+  formatResult(mcpResult: any): any
 }

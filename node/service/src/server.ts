@@ -1,12 +1,17 @@
 import express from 'express'
 import { McpClientManager, defaultBootstrap } from './mcpManager.js'
-import { GeminiAdapter, MCPTool } from './adapters/index.js'
+import { GeminiAdapter, MCPTool, ProviderAdapter } from './adapters/index.js'
 
 const app = express()
 app.use(express.json({ limit: '1mb' }))
 
 const manager = new McpClientManager(defaultBootstrap)
 const geminiAdapter = new GeminiAdapter()
+
+// Registry of provider adapters
+const adapters = new Map<string, ProviderAdapter>([
+  ['gemini', geminiAdapter],
+])
 
 function parseTool(server: string | undefined, tool: string): { server: string, tool: string } {
   if (tool.startsWith('mcp__')) {
@@ -67,6 +72,44 @@ app.post('/call_tool', async (req, res) => {
     const parsed = parseTool(server, tool)
     const result = await manager.callTool(parsed.server, parsed.tool, args ?? {})
     res.json({ result })
+  } catch (error: any) {
+    res.status(500).json({ error: String(error?.message ?? error) })
+  }
+})
+
+app.post('/execute', async (req, res) => {
+  try {
+    const { provider, call, server } = req.body ?? {}
+
+    // Validate request
+    if (!provider || typeof provider !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid "provider" field' })
+    }
+
+    if (!call || typeof call !== 'object') {
+      return res.status(400).json({ error: 'Missing or invalid "call" field' })
+    }
+
+    // Get adapter for provider
+    const adapter = adapters.get(provider)
+    if (!adapter) {
+      return res.status(400).json({
+        error: `Unknown provider: ${provider}`,
+        availableProviders: Array.from(adapters.keys())
+      })
+    }
+
+    // Translate provider call to MCP format
+    const mcpCall = adapter.translateInvocation(call)
+
+    // Execute via MCP
+    const serverName = server ?? 'gtd-graph-memory'
+    const mcpResult = await manager.callTool(serverName, mcpCall.name, mcpCall.arguments)
+
+    // Format result for provider
+    const providerResult = adapter.formatResult(mcpResult)
+
+    res.json({ result: providerResult })
   } catch (error: any) {
     res.status(500).json({ error: String(error?.message ?? error) })
   }
