@@ -1,7 +1,7 @@
 # MCP Tool Gateway — Project Plan
 
 Status: Active
-Last Updated: 2025-01-12
+Last Updated: 2025-11-13
 
 ## Purpose
 
@@ -93,15 +93,15 @@ A translation layer that:
 - Implemented logging in test MCP server (reads `MCP_CALL_LOG` env var, writes JSON log entries)
 - All tests now passing: 2/2 tests pass, ~3.6 minute runtime
 
-### Phase 1.6 — HTTP Transport Support (IN PROGRESS)
+### Phase 1.6 — HTTP Transport Support (COMPLETE)
 - [x] Add HTTP/SSE transport support to McpClientManager (in addition to stdio)
 - [x] Create HTTP-based test MCP server using MCP SDK's SSEServerTransport
 - [x] Update server configuration to support both stdio and HTTP transports
 - [x] Create E2E test that connects to MCP server via HTTP instead of stdio
-- [ ] Test full workflow with HTTP transport: tool discovery → execution → logging
+- [x] Test full workflow with HTTP transport: tool discovery → execution → logging
 - [x] Document HTTP transport configuration and usage patterns
 
-**Status**: Implementation complete, pending testing and verification. Both stdio and HTTP/SSE transports are now supported.
+**Status**: Implementation complete and tested. Both stdio and HTTP/SSE transports are supported; HTTP E2E tests pass with tool discovery, execution, and log verification.
 
 **Goal**: Support multiple MCP transport protocols (stdio and HTTP/SSE) to enable more flexible deployment patterns and better integration with cloud-based MCP servers.
 
@@ -218,7 +218,7 @@ A translation layer that:
   - Foundation: health, tools list, query_nodes call, ontology→create_node→query_nodes
   - GeminiAdapter: 22 unit tests (schema translation, sanitization, execution, edge cases)
   - API endpoints: 5 integration tests (/tools/gemini, /execute with validation)
-- **Next**: log retrieval assertions, OpenAI/xAI adapter tests
+- **Next**: add `/logs` assertions to unit/integration tests (E2E already verifies logs); OpenAI/xAI adapter tests
 
 ## Architecture
 
