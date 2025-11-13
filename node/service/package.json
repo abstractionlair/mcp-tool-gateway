@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "*",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "ollama": "^0.6.2"
   },
   "devDependencies": {
     "@google/generative-ai": "^0.24.1",
