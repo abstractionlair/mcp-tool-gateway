@@ -122,28 +122,32 @@ A translation layer that:
 
 ### Phase 2 — Multi-Provider Support (IN PROGRESS)
 - [x] Implement OpenAI adapter (MCP → OpenAI function format)
-- [ ] Implement xAI adapter (MCP → xAI tool format)
+- [x] Implement xAI adapter (MCP → xAI tool format)
 - [ ] Provider auto-detection from request format
 - [x] Unified `/tools/{provider}` endpoint pattern
 - [x] Provider-specific error handling and response formatting
 
-**Status**: OpenAI adapter complete with 30 unit tests, 4 integration tests, and 2 E2E tests. Full JSON Schema support including constraints (`minimum`, `maximum`, `minLength`, `maxLength`, `pattern`, `additionalProperties`). See PR #[TBD].
+**Status**: OpenAI and xAI adapters complete with unit, integration, and E2E tests. Full JSON Schema support including constraints.
 
 **Goal**: Support major providers with consistent adapter pattern.
 
 **Deliverables**:
 - ✅ OpenAIAdapter class in `src/adapters/openai.ts`
+- ✅ XAIAdapter class in `src/adapters/xai.ts`
 - ✅ `/tools/openai` endpoint returning OpenAI-formatted tools
-- ✅ OpenAI format support in `/execute` endpoint
+- ✅ `/tools/xai` endpoint returning xAI-formatted tools
+- ✅ OpenAI and xAI format support in `/execute` endpoint
 - ✅ 30 unit tests in `test/openai-adapter.test.ts`
+- ✅ 30 unit tests in `test/xai-adapter.test.ts`
 - ✅ 4 integration tests in `test/gateway.test.ts`
 - ✅ 2 E2E tests in `test/openai-e2e.test.ts` (requires `OPENAI_API_KEY`)
-- ✅ Uses `gpt-4o-mini` model for cost efficiency
+- ✅ 2 E2E tests in `test/xai-e2e.test.ts` (requires `XAI_API_KEY`)
+- ✅ Uses `gpt-4o-mini` and `grok-4-fast` models for cost efficiency
 - ✅ Documentation updated in README.md
 - ✅ Provider registry pattern established for future adapters
 
 **Technical Notes**:
-- OpenAI uses `type: "function"` wrapper around function definitions
+- OpenAI and xAI use `type: "function"` wrapper around function definitions
 - Function arguments come as JSON string that requires parsing
 - Supports full JSON Schema including fields not supported by Gemini (`default`, `minimum`, `maximum`, `minLength`, `maxLength`, `pattern`, `minItems`, `maxItems`, `additionalProperties`)
 - E2E tests validate multi-step workflows with state management
@@ -237,10 +241,11 @@ A translation layer that:
   - Foundation: health, tools list, query_nodes call, ontology→create_node→query_nodes
   - GeminiAdapter: 21 unit tests (schema translation, sanitization, execution, edge cases)
   - OpenAIAdapter: 30 unit tests (schema translation, sanitization, execution, edge cases, JSON string parsing)
+  - XAIAdapter: 30 unit tests (schema translation, sanitization, execution, edge cases, JSON string parsing)
   - API endpoints: 13 integration tests (/tools/gemini, /tools/openai, /execute with validation)
-  - E2E tests: Gemini (2 tests), OpenAI (2 tests), Ollama (1 test), HTTP transport (2 tests)
-- **Total**: 64 unit/integration tests passing, 7 E2E tests (with API keys)
-- **Next**: add `/logs` assertions to unit/integration tests (E2E already verifies logs); xAI adapter tests
+  - E2E tests: Gemini (2 tests), OpenAI (2 tests), xAI (2 tests), Ollama (1 test), HTTP transport (2 tests)
+- **Total**: 94 unit/integration tests passing, 9 E2E tests (with API keys)
+- **Next**: add `/logs` assertions to unit/integration tests (E2E already verifies logs)
 
 ## Architecture
 
@@ -346,18 +351,19 @@ print(response.text)
 
 ## Backlog
 
-### Completed (Phase 1 & Phase 2 - OpenAI)
+### Completed
 1. ✅ **Design ProviderAdapter interface** - Core abstraction for all providers
 2. ✅ **Implement GeminiAdapter** - First concrete adapter (MCP → Gemini function_declarations)
 3. ✅ **Implement OpenAIAdapter** - Second adapter with full JSON Schema support
-4. ✅ **Add `/tools/gemini` endpoint** - Return Gemini-formatted tools
-5. ✅ **Add `/tools/openai` endpoint** - Return OpenAI-formatted tools
-6. ✅ **Add `/execute` endpoint** - Provider-agnostic execution with translation
-7. ✅ **End-to-end tests** - Integration tests for full workflow (Gemini + OpenAI)
-8. ✅ **Provider registry** - Extensible pattern for adding new providers
+4. ✅ **Implement XAIAdapter** - Third adapter with full JSON Schema support
+5. ✅ **Add `/tools/gemini` endpoint** - Return Gemini-formatted tools
+6. ✅ **Add `/tools/openai` endpoint** - Return OpenAI-formatted tools
+7. ✅ **Add `/tools/xai` endpoint** - Return xAI-formatted tools
+8. ✅ **Add `/execute` endpoint** - Provider-agnostic execution with translation
+9. ✅ **End-to-end tests** - Integration tests for full workflow (Gemini, OpenAI, xAI)
+10. ✅ **Provider registry** - Extensible pattern for adding new providers
 
-### Up Next (Phase 2 - xAI)
-1. **Implement xAI adapter** - Support for xAI tools (similar to OpenAI format)
-2. **Provider auto-detection** - Detect provider from request format
-3. **Multi-server config** - Support multiple MCP servers in parallel
-4. **Enhanced error handling** - Provider-specific error formatting
+### Up Next
+1. **Provider auto-detection** - Detect provider from request format
+2. **Multi-server config** - Support multiple MCP servers in parallel
+3. **Enhanced error handling** - Provider-specific error formatting

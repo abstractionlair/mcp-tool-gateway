@@ -9,11 +9,12 @@ Connects to MCP servers via the official JS client over stdio and exposes HTTP e
 - **Provider Adapters**: Translate MCP tool schemas to provider-specific formats
   - ✅ Gemini (function_declarations)
   - ✅ OpenAI (function format)
-  - 🔜 xAI (tool format)
+  - ✅ xAI (tool format)
 
 - **HTTP API Endpoints**:
   - GET `/tools/gemini?server=...` → Tools in Gemini function_declarations format
   - GET `/tools/openai?server=...` → Tools in OpenAI tools format
+  - GET `/tools/xai?server=...` → Tools in xAI tools format
   - POST `/execute` → Execute tools via provider-specific format
   - GET `/tools?server=...` → Raw MCP tool schemas
   - POST `/call_tool` → Execute MCP tools (generic format)
@@ -27,8 +28,8 @@ Connects to MCP servers via the official JS client over stdio and exposes HTTP e
 ## Status
 
 **Phase 0 (Foundation)**: ✅ Complete - Basic MCP connection and tool execution working
-**Phase 1 (Provider Adapters)**: ✅ Complete - Gemini and OpenAI adapters complete
-**Phase 2 (Multi-Provider Support)**: 🚧 In Progress - OpenAI adapter complete, xAI next
+**Phase 1 (Provider Adapters)**: ✅ Complete - Gemini, OpenAI, and xAI adapters complete
+**Phase 2 (Multi-Provider Support)**: ✅ In Progress - All major adapters complete
 
 ## Test Quickstart
 
@@ -61,6 +62,10 @@ npm test -- gemini-e2e.test.ts
 # OpenAI E2E (uses gpt-4o-mini)
 export OPENAI_API_KEY=your_key
 npm test -- openai-e2e.test.ts
+
+# xAI E2E (uses grok-4-fast)
+export XAI_API_KEY=your_key
+npm test -- xai-e2e.test.ts
 
 # HTTP transport E2E (Gemini + HTTP/SSE MCP server)
 export GEMINI_API_KEY=your_key
