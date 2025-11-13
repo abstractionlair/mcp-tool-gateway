@@ -53,7 +53,29 @@ A translation layer that:
 
 **Goal**: Working Gemini integration that mimics Anthropic's native MCP pattern.
 
-### Phase 2 — Multi-Provider Support (CURRENT PRIORITY)
+### Phase 1.5 — End-to-End Integration Test (IN PROGRESS)
+- [ ] Create simple test MCP server with basic tools (add, multiply, get_weather, store/get_value)
+- [ ] Build and compile test server to dist
+- [ ] Create E2E test that calls real Gemini API (gemini-1.5-flash for cost efficiency)
+- [ ] Test full workflow: get tools → Gemini generates function calls → execute via gateway → return results
+- [ ] Verify execution via logs
+- [ ] Add instructions for running E2E tests (requires GEMINI_API_KEY)
+
+**Goal**: Validate the complete workflow with a real AI provider, ensuring the gateway works end-to-end with both stdio MCP servers and HTTP requests to Gemini API.
+
+**Requirements**:
+- Simple test MCP server in `node/service/test/fixtures/simple-test-server.ts`
+- E2E test file using real Gemini API calls
+- Use `gemini-1.5-flash` model (inexpensive)
+- Tests should verify:
+  - Tool discovery via `/tools/gemini`
+  - Gemini function calling with retrieved tools
+  - Tool execution via `/execute` endpoint
+  - Results returned to Gemini
+  - Final response generation
+  - Log verification showing tool calls were made
+
+### Phase 2 — Multi-Provider Support (NEXT PRIORITY)
 - [ ] Implement OpenAI adapter (MCP → OpenAI function format)
 - [ ] Implement xAI adapter (MCP → xAI tool format)
 - [ ] Provider auto-detection from request format
