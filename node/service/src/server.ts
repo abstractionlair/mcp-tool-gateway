@@ -1,10 +1,12 @@
 import express from 'express'
 import { McpClientManager, defaultBootstrap } from './mcpManager.js'
+import { GeminiAdapter, MCPTool } from './adapters/index.js'
 
 const app = express()
 app.use(express.json({ limit: '1mb' }))
 
 const manager = new McpClientManager(defaultBootstrap)
+const geminiAdapter = new GeminiAdapter()
 
 function parseTool(server: string | undefined, tool: string): { server: string, tool: string } {
   if (tool.startsWith('mcp__')) {
@@ -24,6 +26,24 @@ app.get('/tools', async (req, res) => {
     const server = (req.query.server as string | undefined) ?? 'gtd-graph-memory'
     const tools = await manager.listTools(server)
     res.json(tools)
+  } catch (error: any) {
+    res.status(500).json({ error: String(error?.message ?? error) })
+  }
+})
+
+app.get('/tools/gemini', async (req, res) => {
+  try {
+    const server = (req.query.server as string | undefined) ?? 'gtd-graph-memory'
+    const toolsResponse = await manager.listTools(server)
+
+    // Handle different SDK response formats: { tools: [...] } or [...]
+    const toolsArray = Array.isArray((toolsResponse as any)?.tools)
+      ? (toolsResponse as any).tools
+      : (Array.isArray(toolsResponse) ? toolsResponse : [])
+
+    // Translate to Gemini format
+    const geminiTools = geminiAdapter.translateAllTools(toolsArray as MCPTool[])
+    res.json(geminiTools)
   } catch (error: any) {
     res.status(500).json({ error: String(error?.message ?? error) })
   }
