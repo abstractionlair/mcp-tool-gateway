@@ -1,7 +1,7 @@
 # MCP Tool Gateway — Project Plan
 
 Status: Active
-Last Updated: 2025-11-12
+Last Updated: 2025-01-13
 
 ## Purpose
 
@@ -41,17 +41,41 @@ A translation layer that:
 
 **Status**: Basic MCP connection and generic tool execution working. Ready for provider adapter layer.
 
-### Phase 1 — Provider Adapter Architecture (CURRENT PRIORITY)
-- [ ] Design provider adapter interface (`ProviderAdapter`)
-- [ ] Implement Gemini adapter: MCP schema → Gemini function_declarations
-- [ ] Implement Gemini execution: function_call → MCP tool call → result
-- [ ] Add `/tools/gemini?server=...` endpoint (returns Gemini-formatted tools)
-- [ ] Add `/execute` endpoint (provider-agnostic tool execution)
-- [ ] Test end-to-end: MCP server → Gateway → Gemini API → execution → response
+### Phase 1 — Provider Adapter Architecture (COMPLETE)
+- [x] Design provider adapter interface (`ProviderAdapter`)
+- [x] Implement Gemini adapter: MCP schema → Gemini function_declarations
+- [x] Implement Gemini execution: function_call → MCP tool call → result
+- [x] Add `/tools/gemini?server=...` endpoint (returns Gemini-formatted tools)
+- [x] Add `/execute` endpoint (provider-agnostic tool execution)
+- [x] Test end-to-end: MCP server → Gateway → Gemini API → execution → response
+
+**Status**: Complete Gemini integration with 22 unit tests + 5 integration tests. Provider adapter pattern established and ready for additional providers. See PR #2.
 
 **Goal**: Working Gemini integration that mimics Anthropic's native MCP pattern.
 
-### Phase 2 — Multi-Provider Support
+### Phase 1.5 — End-to-End Integration Test (IN PROGRESS)
+- [ ] Create simple test MCP server with basic tools (add, multiply, get_weather, store/get_value)
+- [ ] Build and compile test server to dist
+- [ ] Create E2E test that calls real Gemini API (gemini-1.5-flash for cost efficiency)
+- [ ] Test full workflow: get tools → Gemini generates function calls → execute via gateway → return results
+- [ ] Verify execution via logs
+- [ ] Add instructions for running E2E tests (requires GEMINI_API_KEY)
+
+**Goal**: Validate the complete workflow with a real AI provider, ensuring the gateway works end-to-end with both stdio MCP servers and HTTP requests to Gemini API.
+
+**Requirements**:
+- Simple test MCP server in `node/service/test/fixtures/simple-test-server.ts`
+- E2E test file using real Gemini API calls
+- Use `gemini-1.5-flash` model (inexpensive)
+- Tests should verify:
+  - Tool discovery via `/tools/gemini`
+  - Gemini function calling with retrieved tools
+  - Tool execution via `/execute` endpoint
+  - Results returned to Gemini
+  - Final response generation
+  - Log verification showing tool calls were made
+
+### Phase 2 — Multi-Provider Support (NEXT PRIORITY)
 - [ ] Implement OpenAI adapter (MCP → OpenAI function format)
 - [ ] Implement xAI adapter (MCP → xAI tool format)
 - [ ] Provider auto-detection from request format
@@ -143,10 +167,13 @@ A translation layer that:
 
 ## Testing
 
-- Vitest + Supertest for unit + integration
+- Vitest + Supertest for unit + integration tests
 - Requires MCP dist and base/log paths envs for integration tests
-- Current tests: health, tools list, query_nodes call; ontology→create_node→query_nodes
-- Add: log retrieval assertions; schema presence for key tools
+- **Current test coverage**:
+  - Foundation: health, tools list, query_nodes call, ontology→create_node→query_nodes
+  - GeminiAdapter: 22 unit tests (schema translation, sanitization, execution, edge cases)
+  - API endpoints: 5 integration tests (/tools/gemini, /execute with validation)
+- **Next**: log retrieval assertions, OpenAI/xAI adapter tests
 
 ## Architecture
 
@@ -250,13 +277,19 @@ if response.candidates[0].content.parts[0].function_call:
 print(response.text)
 ```
 
-## Backlog (Prioritized for Phase 1)
+## Backlog
 
-1. **Design ProviderAdapter interface** - Core abstraction for all providers
-2. **Implement GeminiAdapter** - First concrete adapter (MCP → Gemini function_declarations)
-3. **Add `/tools/gemini` endpoint** - Return Gemini-formatted tools
-4. **Add `/execute` endpoint** - Provider-agnostic execution with translation
-5. **End-to-end Gemini test** - Prove the pattern works with real Gemini API
-6. **Multi-server config** - Support multiple MCP servers in parallel
-7. **OpenAI & xAI adapters** - Extend pattern to other providers
+### Completed (Phase 1)
+1. ✅ **Design ProviderAdapter interface** - Core abstraction for all providers
+2. ✅ **Implement GeminiAdapter** - First concrete adapter (MCP → Gemini function_declarations)
+3. ✅ **Add `/tools/gemini` endpoint** - Return Gemini-formatted tools
+4. ✅ **Add `/execute` endpoint** - Provider-agnostic execution with translation
+5. ✅ **End-to-end tests** - Integration tests for full workflow
+
+### Up Next (Phase 2)
+1. **Implement OpenAI adapter** - Extend pattern to OpenAI function format
+2. **Implement xAI adapter** - Support for xAI tools
+3. **Provider auto-detection** - Detect provider from request format
+4. **Multi-server config** - Support multiple MCP servers in parallel
+5. **Enhanced error handling** - Provider-specific error formatting
 
