@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 import urllib.request
+import urllib.error
 
 @dataclass
 class GatewayClient:
@@ -14,11 +15,28 @@ class GatewayClient:
         url = f"{self.base_url}/call_tool"
         data = json.dumps({"server": server, "tool": tool, "arguments": arguments}).encode('utf-8')
         req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-            payload = json.loads(resp.read().decode('utf-8'))
-            if 'error' in payload:
-                raise RuntimeError(payload['error'])
-            return payload.get('result')
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                payload = json.loads(resp.read().decode('utf-8'))
+        except urllib.error.HTTPError as e:
+            # Surface gateway error payloads for easier debugging
+            body = ""
+            try:
+                body = e.read().decode('utf-8')  # type: ignore[assignment]
+            except Exception:
+                pass
+            if body:
+                try:
+                    detail = json.loads(body)
+                    msg = detail.get("error") or body
+                except Exception:
+                    msg = body
+            else:
+                msg = e.reason
+            raise RuntimeError(f"Gateway HTTP {e.code}: {msg}") from e
+        if 'error' in payload:
+            raise RuntimeError(payload['error'])
+        return payload.get('result')
 
     def tools(self, server: Optional[str] = None):
         url = f"{self.base_url}/tools"
