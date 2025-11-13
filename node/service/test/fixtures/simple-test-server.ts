@@ -10,9 +10,27 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
+import { appendFileSync } from 'node:fs'
 
 // Simple in-memory store for testing
 const store: Record<string, any> = {}
+
+// Logging functionality
+const logPath = process.env.MCP_CALL_LOG
+function logToolCall(tool: string, args: any, result: any) {
+  if (!logPath) return
+  try {
+    const entry = {
+      timestamp: new Date().toISOString(),
+      tool,
+      arguments: args,
+      result,
+    }
+    appendFileSync(logPath, JSON.stringify(entry) + '\n', 'utf-8')
+  } catch (error) {
+    console.error('Failed to write log:', error)
+  }
+}
 
 // Create MCP server
 const server = new Server(
@@ -125,7 +143,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case 'add': {
       const { a, b } = args as { a: number; b: number }
       const result = a + b
-      return {
+      const response = {
         content: [
           {
             type: 'text',
@@ -133,12 +151,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       }
+      logToolCall(name, args, response)
+      return response
     }
 
     case 'multiply': {
       const { a, b } = args as { a: number; b: number }
       const result = a * b
-      return {
+      const response = {
         content: [
           {
             type: 'text',
@@ -146,6 +166,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       }
+      logToolCall(name, args, response)
+      return response
     }
 
     case 'get_weather': {
@@ -157,7 +179,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         conditions: 'sunny',
         humidity: 45,
       }
-      return {
+      const response = {
         content: [
           {
             type: 'text',
@@ -165,12 +187,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       }
+      logToolCall(name, args, response)
+      return response
     }
 
     case 'store_value': {
       const { key, value } = args as { key: string; value: string }
       store[key] = value
-      return {
+      const response = {
         content: [
           {
             type: 'text',
@@ -178,12 +202,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       }
+      logToolCall(name, args, response)
+      return response
     }
 
     case 'get_value': {
       const { key } = args as { key: string }
       const value = store[key]
-      return {
+      const response = {
         content: [
           {
             type: 'text',
@@ -191,6 +217,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       }
+      logToolCall(name, args, response)
+      return response
     }
 
     default:

@@ -12,7 +12,7 @@
  *
  * Requirements:
  * - GEMINI_API_KEY environment variable must be set
- * - Uses gemini-1.5-flash for cost efficiency
+ * - Uses gemini-2.5-flash for cost efficiency
  *
  * To run:
  * GEMINI_API_KEY=your_key npm test -- gemini-e2e.test.ts
@@ -81,7 +81,7 @@ describeOrSkip('Gemini E2E Integration', () => {
 
     // Step 2: Create Gemini model with tools
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       tools: [{ functionDeclarations: tools }],
     })
 
@@ -122,8 +122,14 @@ describeOrSkip('Gemini E2E Integration', () => {
 
     console.log('Tool execution result:', result)
 
-    // Parse the result (simple-test-server returns JSON string)
-    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result
+    // Parse the result - extract from MCP content format
+    let parsedResult
+    if (result.content && Array.isArray(result.content)) {
+      const textContent = result.content.find((c: any) => c.type === 'text')?.text
+      parsedResult = typeof textContent === 'string' ? JSON.parse(textContent) : textContent
+    } else {
+      parsedResult = typeof result === 'string' ? JSON.parse(result) : result
+    }
     expect(parsedResult).toHaveProperty('result', 42)
 
     // Step 6: Send result back to Gemini
@@ -185,7 +191,15 @@ describeOrSkip('Gemini E2E Integration', () => {
 
         expect(execResp.status).toBe(200)
         const execResult = execResp.body.result
-        const parsedExecResult = typeof execResult === 'string' ? JSON.parse(execResult) : execResult
+
+        // Parse the result - extract from MCP content format
+        let parsedExecResult
+        if (execResult.content && Array.isArray(execResult.content)) {
+          const textContent = execResult.content.find((c: any) => c.type === 'text')?.text
+          parsedExecResult = typeof textContent === 'string' ? JSON.parse(textContent) : textContent
+        } else {
+          parsedExecResult = typeof execResult === 'string' ? JSON.parse(execResult) : execResult
+        }
 
         console.log(`  - Result:`, parsedExecResult)
 
@@ -226,13 +240,13 @@ describeOrSkip('Gemini E2E Integration', () => {
 
     // Should have logs for the tool calls we made
     expect(logs.length).toBeGreaterThan(0)
-    const toolNames = logs.map((log: any) => log.tool)
-    expect(toolNames).toContain('add')
-    expect(toolNames).toContain('multiply')
-    expect(toolNames).toContain('store_value')
-    expect(toolNames).toContain('get_value')
+    const loggedToolNames = logs.map((log: any) => log.tool)
+    expect(loggedToolNames).toContain('add')
+    expect(loggedToolNames).toContain('multiply')
+    expect(loggedToolNames).toContain('store_value')
+    expect(loggedToolNames).toContain('get_value')
 
-    console.log('Tool calls logged:', [...new Set(toolNames)])
+    console.log('Tool calls logged:', [...new Set(loggedToolNames)])
   }, 60000) // 60 second timeout for API calls
 
   it('handles weather tool with string parameters', async () => {
@@ -245,7 +259,7 @@ describeOrSkip('Gemini E2E Integration', () => {
 
     // Create model
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       tools: [{ functionDeclarations: tools }],
     })
 
@@ -276,7 +290,15 @@ describeOrSkip('Gemini E2E Integration', () => {
 
     expect(executeResponse.status).toBe(200)
     const result = executeResponse.body.result
-    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result
+
+    // Parse the result - extract from MCP content format
+    let parsedResult
+    if (result.content && Array.isArray(result.content)) {
+      const textContent = result.content.find((c: any) => c.type === 'text')?.text
+      parsedResult = typeof textContent === 'string' ? JSON.parse(textContent) : textContent
+    } else {
+      parsedResult = typeof result === 'string' ? JSON.parse(result) : result
+    }
 
     expect(parsedResult).toHaveProperty('location')
     expect(parsedResult).toHaveProperty('temperature')

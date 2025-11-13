@@ -1,7 +1,7 @@
 # MCP Tool Gateway — Project Plan
 
 Status: Active
-Last Updated: 2025-01-13
+Last Updated: 2025-01-12
 
 ## Purpose
 
@@ -56,30 +56,68 @@ A translation layer that:
 ### Phase 1.5 — End-to-End Integration Test (COMPLETE)
 - [x] Create simple test MCP server with basic tools (add, multiply, get_weather, store/get_value)
 - [x] Build and compile test server to dist
-- [x] Create E2E test that calls real Gemini API (gemini-1.5-flash for cost efficiency)
+- [x] Create E2E test that calls real Gemini API (gemini-2.5-flash for cost efficiency)
 - [x] Test full workflow: get tools → Gemini generates function calls → execute via gateway → return results
 - [x] Verify execution via logs
+- [x] Add logging functionality to test MCP server
+- [x] Fix result parsing to handle MCP content format
 - [x] Add instructions for running E2E tests (requires GEMINI_API_KEY)
 
-**Status**: E2E tests complete with comprehensive coverage. Tests validate full workflow from tool discovery through Gemini API function calling to execution and response. See `node/service/test/gemini-e2e.test.ts` and [docs/E2E_TESTING.md](./E2E_TESTING.md).
+**Status**: E2E tests complete with comprehensive coverage and all tests passing (2/2). Tests validate full workflow from tool discovery through Gemini API function calling to execution and response. See `node/service/test/gemini-e2e.test.ts` and [docs/E2E_TESTING.md](./E2E_TESTING.md).
 
 **Goal**: Validate the complete workflow with a real AI provider, ensuring the gateway works end-to-end with both stdio MCP servers and HTTP requests to Gemini API.
 
 **Deliverables**:
 - ✅ Simple test MCP server in `node/service/test/fixtures/simple-test-server.ts`
 - ✅ E2E test file `node/service/test/gemini-e2e.test.ts` using real Gemini API calls
-- ✅ Uses `gemini-1.5-flash` model (inexpensive, <$0.01 per test run)
+- ✅ Uses `gemini-2.5-flash` model (latest, inexpensive, <$0.01 per test run)
 - ✅ Tests verify:
   - Tool discovery via `/tools/gemini`
   - Gemini function calling with retrieved tools
   - Tool execution via `/execute` endpoint
+  - MCP content format result parsing
   - Results returned to Gemini
   - Final response generation
-  - Log verification showing tool calls were made
+  - Log verification showing tool calls were made (8 log entries verified)
   - Multi-step workflows with state management
+  - String parameter handling (weather tool)
+- ✅ MCP server logging functionality via `MCP_CALL_LOG` environment variable
 - ✅ Comprehensive documentation in [docs/E2E_TESTING.md](./E2E_TESTING.md)
 - ✅ Secure API key handling with environment variables
 - ✅ Tests auto-skip when `GEMINI_API_KEY` not set
+
+**Recent Fixes** (2025-01-12):
+- Updated to `gemini-2.5-flash` model (replacing deprecated `gemini-1.5-flash`)
+- Fixed duplicate variable declaration (`toolNames` → `loggedToolNames`)
+- Enhanced result parsing to extract JSON from MCP content format (`result.content[].text`)
+- Implemented logging in test MCP server (reads `MCP_CALL_LOG` env var, writes JSON log entries)
+- All tests now passing: 2/2 tests pass, ~3.6 minute runtime
+
+### Phase 1.6 — HTTP Transport Support (PLANNED)
+- [ ] Add HTTP/SSE transport support to McpClientManager (in addition to stdio)
+- [ ] Create HTTP-based test MCP server using MCP SDK's StreamableHttpServerTransport
+- [ ] Update server configuration to support both stdio and HTTP transports
+- [ ] Create E2E test that connects to MCP server via HTTP instead of stdio
+- [ ] Test full workflow with HTTP transport: tool discovery → execution → logging
+- [ ] Document HTTP transport configuration and usage patterns
+
+**Status**: Not started. Currently only stdio transport is supported.
+
+**Goal**: Support multiple MCP transport protocols (stdio and HTTP/SSE) to enable more flexible deployment patterns and better integration with cloud-based MCP servers.
+
+**Deliverables**:
+- [ ] HTTP transport adapter in McpClientManager
+- [ ] HTTP-based version of simple-test-server
+- [ ] Configuration schema supporting transport type selection
+- [ ] E2E test validating HTTP transport end-to-end
+- [ ] Documentation for HTTP transport setup and configuration
+- [ ] Performance comparison: stdio vs HTTP transport
+
+**Technical Notes**:
+- MCP SDK provides `StreamableHttpClientTransport` and `StreamableHttpServerTransport`
+- HTTP transport enables remote MCP servers (not just local processes)
+- SSE support allows for streaming responses and server-initiated events
+- Configuration may need to distinguish between local (stdio) and remote (HTTP) servers
 
 ### Phase 2 — Multi-Provider Support (NEXT PRIORITY)
 - [ ] Implement OpenAI adapter (MCP → OpenAI function format)
