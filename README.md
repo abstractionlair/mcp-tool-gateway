@@ -160,6 +160,41 @@ Notes:
 - `/logs` tails the file specified by `GTD_GRAPH_LOG_PATH`.
 - Multiple servers will be supported by adding more specs; initial scaffold wires one.
 
+## Testing
+
+### Unit and Integration Tests
+
+```bash
+cd node/service
+npm test
+```
+
+Or run only unit tests (excludes E2E):
+
+```bash
+npm run test:unit
+```
+
+### End-to-End Tests with Real Gemini API
+
+E2E tests validate the complete workflow with real API calls. See [docs/E2E_TESTING.md](docs/E2E_TESTING.md) for detailed instructions.
+
+**Quick start:**
+
+```bash
+cd node/service
+
+# Set your Gemini API key (get one at https://makersuite.google.com/app/apikey)
+export GEMINI_API_KEY="your_api_key_here"
+
+# Run E2E tests
+npm run test:e2e
+```
+
+**Security note:** Never commit API keys. The `.env` file is gitignored for local development.
+
+If `GEMINI_API_KEY` is not set, E2E tests are automatically skipped.
+
 ## Project Plan
 
 See docs/PLAN.md for the full roadmap, priorities, and API contract.

@@ -53,27 +53,33 @@ A translation layer that:
 
 **Goal**: Working Gemini integration that mimics Anthropic's native MCP pattern.
 
-### Phase 1.5 — End-to-End Integration Test (IN PROGRESS)
-- [ ] Create simple test MCP server with basic tools (add, multiply, get_weather, store/get_value)
-- [ ] Build and compile test server to dist
-- [ ] Create E2E test that calls real Gemini API (gemini-1.5-flash for cost efficiency)
-- [ ] Test full workflow: get tools → Gemini generates function calls → execute via gateway → return results
-- [ ] Verify execution via logs
-- [ ] Add instructions for running E2E tests (requires GEMINI_API_KEY)
+### Phase 1.5 — End-to-End Integration Test (COMPLETE)
+- [x] Create simple test MCP server with basic tools (add, multiply, get_weather, store/get_value)
+- [x] Build and compile test server to dist
+- [x] Create E2E test that calls real Gemini API (gemini-1.5-flash for cost efficiency)
+- [x] Test full workflow: get tools → Gemini generates function calls → execute via gateway → return results
+- [x] Verify execution via logs
+- [x] Add instructions for running E2E tests (requires GEMINI_API_KEY)
+
+**Status**: E2E tests complete with comprehensive coverage. Tests validate full workflow from tool discovery through Gemini API function calling to execution and response. See `node/service/test/gemini-e2e.test.ts` and [docs/E2E_TESTING.md](./E2E_TESTING.md).
 
 **Goal**: Validate the complete workflow with a real AI provider, ensuring the gateway works end-to-end with both stdio MCP servers and HTTP requests to Gemini API.
 
-**Requirements**:
-- Simple test MCP server in `node/service/test/fixtures/simple-test-server.ts`
-- E2E test file using real Gemini API calls
-- Use `gemini-1.5-flash` model (inexpensive)
-- Tests should verify:
+**Deliverables**:
+- ✅ Simple test MCP server in `node/service/test/fixtures/simple-test-server.ts`
+- ✅ E2E test file `node/service/test/gemini-e2e.test.ts` using real Gemini API calls
+- ✅ Uses `gemini-1.5-flash` model (inexpensive, <$0.01 per test run)
+- ✅ Tests verify:
   - Tool discovery via `/tools/gemini`
   - Gemini function calling with retrieved tools
   - Tool execution via `/execute` endpoint
   - Results returned to Gemini
   - Final response generation
   - Log verification showing tool calls were made
+  - Multi-step workflows with state management
+- ✅ Comprehensive documentation in [docs/E2E_TESTING.md](./E2E_TESTING.md)
+- ✅ Secure API key handling with environment variables
+- ✅ Tests auto-skip when `GEMINI_API_KEY` not set
 
 ### Phase 2 — Multi-Provider Support (NEXT PRIORITY)
 - [ ] Implement OpenAI adapter (MCP → OpenAI function format)
