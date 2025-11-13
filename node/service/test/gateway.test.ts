@@ -66,6 +66,54 @@ describe('gateway endpoints', () => {
     expect(queryNodesDecl).toBeTruthy()
   })
 
+  it('can execute tools via /execute with Gemini format', async () => {
+    const res = await request(app)
+      .post('/execute')
+      .send({
+        provider: 'gemini',
+        call: {
+          name: 'query_nodes',
+          args: {},
+        },
+        server: 'gtd-graph-memory',
+      })
+    expect(res.status).toBe(200)
+    expect(res.body).toHaveProperty('result')
+    expect(res.body.result).toBeTruthy()
+  })
+
+  it('rejects /execute with missing provider', async () => {
+    const res = await request(app)
+      .post('/execute')
+      .send({
+        call: { name: 'query_nodes', args: {} },
+      })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toContain('provider')
+  })
+
+  it('rejects /execute with missing call', async () => {
+    const res = await request(app)
+      .post('/execute')
+      .send({
+        provider: 'gemini',
+      })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toContain('call')
+  })
+
+  it('rejects /execute with unknown provider', async () => {
+    const res = await request(app)
+      .post('/execute')
+      .send({
+        provider: 'unknown-provider',
+        call: { name: 'test', args: {} },
+      })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toContain('Unknown provider')
+    expect(res.body.availableProviders).toContain('gemini')
+  })
+
   it('can create ontology and then create a task', async () => {
     // Use a unique base path per test to avoid ontology collisions
     const uniqueBase = path.join(process.cwd(), '.tmp', 'test-data-' + Date.now())

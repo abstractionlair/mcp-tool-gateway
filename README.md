@@ -13,6 +13,7 @@ Connects to MCP servers via the official JS client over stdio and exposes HTTP e
 
 - **HTTP API Endpoints**:
   - GET `/tools/gemini?server=...` → Tools in Gemini function_declarations format
+  - POST `/execute` → Execute tools via provider-specific format
   - GET `/tools?server=...` → Raw MCP tool schemas
   - POST `/call_tool` → Execute MCP tools (generic format)
   - GET `/logs?server=...&since=...&limit=...` → Recent MCP execution logs
@@ -37,25 +38,53 @@ The gateway translates MCP tool schemas to Gemini's `function_declarations` form
 import google.generativeai as genai
 import requests
 
-# 1. Get tools in Gemini format from the gateway
 gateway_url = "http://localhost:8787"
+
+# 1. Get tools in Gemini format from the gateway
 response = requests.get(f"{gateway_url}/tools/gemini?server=gtd-graph-memory")
 tools = response.json()
 
 # 2. Create Gemini model with MCP tools
 model = genai.GenerativeModel('gemini-1.5-pro', tools=tools['function_declarations'])
-
-# 3. Use the model - it can now call your MCP tools!
 chat = model.start_chat()
+
+# 3. Send a message that requires tool use
 response = chat.send_message("What tasks do I have?")
+
+# 4. Check if Gemini wants to call a function
+if response.candidates[0].content.parts[0].function_call:
+    function_call = response.candidates[0].content.parts[0].function_call
+
+    # 5. Execute via gateway
+    result = requests.post(f"{gateway_url}/execute", json={
+        "provider": "gemini",
+        "call": {
+            "name": function_call.name,
+            "args": dict(function_call.args)
+        },
+        "server": "gtd-graph-memory"
+    }).json()["result"]
+
+    # 6. Send result back to Gemini
+    response = chat.send_message({
+        "role": "function",
+        "parts": [{
+            "function_response": {
+                "name": function_call.name,
+                "response": result
+            }
+        }]
+    })
+
 print(response.text)
 ```
 
 ### How It Works
 
 1. **Tool Discovery**: `GET /tools/gemini` returns tools in Gemini's expected format
-2. **Tool Execution**: When Gemini calls a function, use `/call_tool` to execute it via MCP
-3. **Response Loop**: Send execution results back to Gemini to complete the request
+2. **Conversation**: Send messages to Gemini, which may trigger function calls
+3. **Tool Execution**: When Gemini calls a function, use `POST /execute` with provider-specific format
+4. **Response Loop**: Send execution results back to Gemini to complete the request
 
 Example of the response format:
 
@@ -115,10 +144,15 @@ curl 'http://localhost:8787/tools?server=gtd-graph-memory'
 # Get tools in Gemini format
 curl 'http://localhost:8787/tools/gemini?server=gtd-graph-memory'
 
-# Execute a tool
+# Execute a tool (generic MCP format)
 curl -X POST 'http://localhost:8787/call_tool' \
   -H 'Content-Type: application/json' \
   -d '{"server":"gtd-graph-memory","tool":"query_nodes","arguments":{}}'
+
+# Execute a tool (provider-specific format - Gemini)
+curl -X POST 'http://localhost:8787/execute' \
+  -H 'Content-Type: application/json' \
+  -d '{"provider":"gemini","call":{"name":"query_nodes","args":{}},"server":"gtd-graph-memory"}'
 ```
 
 Notes:
