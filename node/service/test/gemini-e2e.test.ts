@@ -226,13 +226,13 @@ describeOrSkip('Gemini E2E Integration', () => {
 
     // Should have logs for the tool calls we made
     expect(logs.length).toBeGreaterThan(0)
-    const toolNames = logs.map((log: any) => log.tool)
-    expect(toolNames).toContain('add')
-    expect(toolNames).toContain('multiply')
-    expect(toolNames).toContain('store_value')
-    expect(toolNames).toContain('get_value')
+    const loggedToolNames = logs.map((log: any) => log.tool)
+    expect(loggedToolNames).toContain('add')
+    expect(loggedToolNames).toContain('multiply')
+    expect(loggedToolNames).toContain('store_value')
+    expect(loggedToolNames).toContain('get_value')
 
-    console.log('Tool calls logged:', [...new Set(toolNames)])
+    console.log('Tool calls logged:', [...new Set(loggedToolNames)])
   }, 60000) // 60 second timeout for API calls
 
   it('handles weather tool with string parameters', async () => {
