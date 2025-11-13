@@ -8,13 +8,23 @@ import { Client as McpClient } from '@modelcontextprotocol/sdk/client/index.js'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { runLocalTool } from './runLocalTool.js'
+
+export type TransportType = 'stdio' | 'http'
 
 export interface ServerSpec {
   name: string
-  command: string
+  transport?: TransportType // Default: 'stdio'
+  // Stdio transport fields
+  command?: string
   args?: string[]
   env?: Record<string, string>
+  // HTTP transport fields
+  url?: string
+  // Common fields
   logPath?: string
 }
 
@@ -36,12 +46,28 @@ export class McpClientManager {
     const spec = this.bootstrap().find(s => s.name === serverName)
     if (!spec) throw new Error(`Unknown server: ${serverName}`)
 
-    const transport = new StdioClientTransport({
-      command: spec.command,
-      args: spec.args ?? [],
-      env: spec.env ?? {},
-      // stderr: 'pipe', // optionally capture
-    })
+    const transportType = spec.transport ?? 'stdio'
+    let transport: any
+
+    if (transportType === 'http') {
+      // HTTP/SSE transport
+      if (!spec.url) {
+        throw new Error(`HTTP transport requires url field for server: ${serverName}`)
+      }
+      transport = new SSEClientTransport(new URL(spec.url))
+    } else {
+      // Stdio transport
+      if (!spec.command) {
+        throw new Error(`Stdio transport requires command field for server: ${serverName}`)
+      }
+      transport = new StdioClientTransport({
+        command: spec.command,
+        args: spec.args ?? [],
+        env: spec.env ?? {},
+        // stderr: 'pipe', // optionally capture
+      })
+    }
+
     const client = new McpClient({ name: 'mcp-tool-gateway', version: '0.1.0' })
     await client.connect(transport)
     handle = { spec, client, transport }

@@ -93,31 +93,32 @@ A translation layer that:
 - Implemented logging in test MCP server (reads `MCP_CALL_LOG` env var, writes JSON log entries)
 - All tests now passing: 2/2 tests pass, ~3.6 minute runtime
 
-### Phase 1.6 — HTTP Transport Support (PLANNED)
-- [ ] Add HTTP/SSE transport support to McpClientManager (in addition to stdio)
-- [ ] Create HTTP-based test MCP server using MCP SDK's StreamableHttpServerTransport
-- [ ] Update server configuration to support both stdio and HTTP transports
-- [ ] Create E2E test that connects to MCP server via HTTP instead of stdio
+### Phase 1.6 — HTTP Transport Support (IN PROGRESS)
+- [x] Add HTTP/SSE transport support to McpClientManager (in addition to stdio)
+- [x] Create HTTP-based test MCP server using MCP SDK's SSEServerTransport
+- [x] Update server configuration to support both stdio and HTTP transports
+- [x] Create E2E test that connects to MCP server via HTTP instead of stdio
 - [ ] Test full workflow with HTTP transport: tool discovery → execution → logging
-- [ ] Document HTTP transport configuration and usage patterns
+- [x] Document HTTP transport configuration and usage patterns
 
-**Status**: Not started. Currently only stdio transport is supported.
+**Status**: Implementation complete, pending testing and verification. Both stdio and HTTP/SSE transports are now supported.
 
 **Goal**: Support multiple MCP transport protocols (stdio and HTTP/SSE) to enable more flexible deployment patterns and better integration with cloud-based MCP servers.
 
 **Deliverables**:
-- [ ] HTTP transport adapter in McpClientManager
-- [ ] HTTP-based version of simple-test-server
-- [ ] Configuration schema supporting transport type selection
-- [ ] E2E test validating HTTP transport end-to-end
-- [ ] Documentation for HTTP transport setup and configuration
+- [x] HTTP transport adapter in McpClientManager (`src/mcpManager.ts:49-76`)
+- [x] HTTP-based version of simple-test-server (`test/fixtures/simple-test-server-http.ts`)
+- [x] Configuration schema supporting transport type selection (`ServerSpec` interface with `transport` field)
+- [x] E2E test validating HTTP transport end-to-end (`test/gemini-http-e2e.test.ts`)
+- [x] Documentation for HTTP transport setup and configuration (`docs/HTTP_TRANSPORT.md`)
 - [ ] Performance comparison: stdio vs HTTP transport
 
 **Technical Notes**:
-- MCP SDK provides `StreamableHttpClientTransport` and `StreamableHttpServerTransport`
+- MCP SDK provides `SSEClientTransport` and `SSEServerTransport` (used instead of StreamableHttp*)
 - HTTP transport enables remote MCP servers (not just local processes)
 - SSE support allows for streaming responses and server-initiated events
-- Configuration may need to distinguish between local (stdio) and remote (HTTP) servers
+- Configuration distinguishes between local (stdio) and remote (HTTP) servers via `transport` field
+- ServerSpec interface extended to support both transport types with appropriate required fields
 
 ### Phase 2 — Multi-Provider Support (NEXT PRIORITY)
 - [ ] Implement OpenAI adapter (MCP → OpenAI function format)
