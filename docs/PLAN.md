@@ -5,69 +5,133 @@ Last Updated: 2025-11-12
 
 ## Purpose
 
-A generic, provider‑agnostic gateway that connects to MCP servers (via the official JS client over stdio) and exposes a small HTTP API for:
-- Calling tools: POST /call_tool
-- Listing tools + JSON Schemas: GET /tools
-- Reading logs: GET /logs
-- Health checks: GET /health
+**MCP-to-Provider Adapter**: Enable MCP servers to work with AI providers that don't have native MCP support (Gemini, OpenAI, xAI, etc.) by translating MCP tool schemas and execution calls to provider-specific formats.
 
-Clients (Python + TypeScript) provide a simple call_tool/tools/logs interface.
+### The Problem
+
+- **Anthropic/Claude**: Native MCP support via API parameters (the ideal model)
+- **Google Gemini**: Uses function calling, requires manual tool schema definitions
+- **OpenAI/xAI**: Moving toward MCP support, but currently need tool definitions
+- **Other providers**: No MCP support, use various tool/function calling formats
+
+### The Solution
+
+A translation layer that:
+1. **Connects to MCP servers** via stdio (using official JS client)
+2. **Translates MCP tool schemas** → provider-specific formats (Gemini functions, OpenAI tools, etc.)
+3. **Generates tool descriptions** for injection into model context
+4. **Executes tool calls** by translating provider-specific invocations → MCP format
 
 ## High‑Level Goals
 
-- Self‑contained, well‑tested Node service with clear configuration
-- High‑quality tool metadata (JSON Schemas) from MCP servers
-- Robust transport (stdio client), with optional local fallback or HTTP/SSE proxy
-- First‑class Python and TS clients
-- Easy local development and examples
+- **Provider adapters** that translate MCP schemas to Gemini, OpenAI, xAI formats
+- **Execution layer** that handles provider tool calls → MCP tool execution
+- **Context generators** for inserting tool descriptions into prompts
+- **Multi-server support** with clean configuration
+- **Gemini as priority** (Anthropic already has native MCP)
 
 ## Roadmap (Phases)
 
-### Phase 1 — Solid Baseline (Current)
+### Phase 0 — Foundation (COMPLETE)
 - [x] HTTP API skeleton: /call_tool, /tools, /logs, /health
 - [x] Stdio MCP client: connect and list tools
 - [x] Tool invocation: call tools (fallback to local dist handler on timeout)
 - [x] Baseline tests (Vitest + Supertest): health/tools/call_tool
 - [x] README + env variable configuration
 
-### Phase 2 — Transport + Tool Metadata
-- [ ] Make stdio MCP path primary for tools/call (tune timeouts, no fallback in happy path)
-- [ ] Normalize /tools output: { tools: [{ name, description, inputSchema, outputSchema? }] }
-- [ ] Zod→JSON Schema capture: cache tool schemas from listTools; expose them consistently
-- [ ] Multi‑server config: JSON/env to register several servers (names, command, args, env, logs)
-- [ ] Correlation IDs: inject IDs for tracing request → tool calls → logs
+**Status**: Basic MCP connection and generic tool execution working. Ready for provider adapter layer.
 
-### Phase 3 — Observability + DX
-- [ ] /logs enhancements: since/limit filters (present), add SSE stream option
-- [ ] Metrics: basic request counters/timers (optional)
-- [ ] Dockerfile + example docker‑compose for local MCP server
-- [ ] Examples: curl + Python + TS scripts calling the gateway
+### Phase 1 — Provider Adapter Architecture (CURRENT PRIORITY)
+- [ ] Design provider adapter interface (`ProviderAdapter`)
+- [ ] Implement Gemini adapter: MCP schema → Gemini function_declarations
+- [ ] Implement Gemini execution: function_call → MCP tool call → result
+- [ ] Add `/tools/gemini?server=...` endpoint (returns Gemini-formatted tools)
+- [ ] Add `/execute` endpoint (provider-agnostic tool execution)
+- [ ] Test end-to-end: MCP server → Gateway → Gemini API → execution → response
 
-### Phase 4 — Clients & Packaging
-- [ ] Python client: publish to PyPI (mcp-tool-gateway)
-- [ ] TS client: publish to npm (@mcp-tool-gateway/client)
-- [ ] Versioning + CHANGELOG
-- [ ] CI: lint, test, build, publish packages
+**Goal**: Working Gemini integration that mimics Anthropic's native MCP pattern.
 
-### Phase 5 — Optional Transports / Provider Fast Paths
-- [ ] SSE proxy to support provider “remote MCP tools” (xAI/Anthropic) as an optional mode
-- [ ] Auth hooks (token passthrough or basic API key) for hosted setups
+### Phase 2 — Multi-Provider Support
+- [ ] Implement OpenAI adapter (MCP → OpenAI function format)
+- [ ] Implement xAI adapter (MCP → xAI tool format)
+- [ ] Provider auto-detection from request format
+- [ ] Unified `/tools/{provider}` endpoint pattern
+- [ ] Provider-specific error handling and response formatting
 
-## API Contract (initial)
+**Goal**: Support major providers with consistent adapter pattern.
 
-- POST /call_tool
-  - Request: { server: string, tool: string | canonical (mcp__server__tool), arguments: object }
-  - Response: { result: any, correlation_id?: string }
-  - Errors: { error: { code, message, details? } }
+### Phase 3 — Context Generation & Tooling
+- [ ] Context generators: format tool descriptions for prompt injection
+- [ ] `/tools/{provider}/context` endpoint (human-readable tool descriptions)
+- [ ] Schema optimization: concise vs. detailed modes
+- [ ] Tool filtering and grouping (by category, importance, etc.)
+- [ ] Multi-server config: JSON/env to register multiple MCP servers
 
-- GET /tools?server=name
-  - Response: { tools: [{ name, description, inputSchema, outputSchema? }] }
+**Goal**: Rich tool metadata and flexible context generation for different use cases.
 
-- GET /logs?server=name&since=iso8601&limit=100
-  - Response: [ { timestamp, tool, input, result?, error? } ]
+### Phase 4 — Client Libraries & DX
+- [ ] Python client with provider-aware methods
+- [ ] TypeScript client with type safety for each provider
+- [ ] Examples for each provider (Gemini, OpenAI, xAI)
+- [ ] Documentation: setup guides, provider-specific patterns
+- [ ] Testing utilities for MCP server development
 
-- GET /health
-  - Response: { ok: true, servers: [{ name, status }] }
+**Goal**: Easy-to-use clients that abstract away provider differences.
+
+### Phase 5 — Observability & Production
+- [ ] Correlation IDs: trace request → provider call → MCP execution
+- [ ] Structured logging with provider context
+- [ ] `/logs` enhancements: filtering, SSE streaming
+- [ ] Health checks with per-server status
+- [ ] Metrics: request counters, latencies, error rates
+- [ ] Docker deployment + examples
+
+## API Contract
+
+### Provider-Specific Endpoints (NEW - Phase 1)
+
+**GET `/tools/{provider}?server=name`**
+- Returns tools in provider-specific format
+- Example: `/tools/gemini` returns Gemini function_declarations
+- Response format varies by provider:
+  - Gemini: `{ function_declarations: [...] }`
+  - OpenAI: `{ tools: [{ type: "function", function: {...} }] }`
+  - xAI: Similar to OpenAI
+
+**POST `/execute`**
+- Execute MCP tool from provider-specific invocation
+- Request: `{ provider: string, call: object, server?: string }`
+- Translates provider format → MCP → executes → returns in provider format
+- Example Gemini request:
+  ```json
+  {
+    "provider": "gemini",
+    "call": {
+      "name": "query_nodes",
+      "args": { "query": "tasks" }
+    },
+    "server": "gtd-graph-memory"
+  }
+  ```
+
+**GET `/tools/{provider}/context?server=name`** (Phase 3)
+- Returns human-readable tool descriptions for prompt injection
+- Optimized for context window efficiency
+
+### Generic Endpoints (Foundation - Phase 0)
+
+**POST `/call_tool`** (Legacy, kept for compatibility)
+- Request: `{ server: string, tool: string, arguments: object }`
+- Response: `{ result: any }`
+
+**GET `/tools?server=name`** (Raw MCP format)
+- Response: MCP tool schemas (not provider-specific)
+
+**GET `/logs?server=name&since=iso8601&limit=100`**
+- Response: `[{ timestamp, tool, input, result?, error? }]`
+
+**GET `/health`**
+- Response: `{ ok: true, servers: [{ name, status }] }`
 
 ## Configuration
 
@@ -84,27 +148,115 @@ Clients (Python + TypeScript) provide a simple call_tool/tools/logs interface.
 - Current tests: health, tools list, query_nodes call; ontology→create_node→query_nodes
 - Add: log retrieval assertions; schema presence for key tools
 
-## Architecture Notes
+## Architecture
 
-- Stdio client is the primary transport; gateway may fallback to direct handler for local dev speed
-- Keep endpoints stable and small
-- No provider SDKs in this repo; gateway is provider‑agnostic
-- Preserve ground‑truth logging from MCP server
+### Core Components
 
-## Backlog (Prioritized)
+```
+┌─────────────────────────────────────────────────────────┐
+│                    AI Provider API                       │
+│              (Gemini, OpenAI, xAI, etc.)                │
+└─────────────────────────────────────────────────────────┘
+                          ↕
+              1. Get tools in provider format
+              2. Receive tool call from model
+              3. Send execution result back
+                          ↕
+┌─────────────────────────────────────────────────────────┐
+│              MCP Tool Gateway (This Project)             │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │         Provider Adapters Layer                  │   │
+│  │  • GeminiAdapter: MCP ↔ function_declarations   │   │
+│  │  • OpenAIAdapter: MCP ↔ OpenAI functions        │   │
+│  │  • xAIAdapter: MCP ↔ xAI tools                  │   │
+│  └─────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │         MCP Client Manager                       │   │
+│  │  • Connect to MCP servers via stdio             │   │
+│  │  • List tools, call tools, read logs            │   │
+│  └─────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+                          ↕
+              stdio transport (Node spawns process)
+                          ↕
+┌─────────────────────────────────────────────────────────┐
+│                    MCP Servers                           │
+│         (graph-memory, filesystem, etc.)                │
+└─────────────────────────────────────────────────────────┘
+```
 
-1. Make stdio callTool primary; local fallback only on SDK error/timeout (configurable)
-2. Normalize /tools shape and include schemas consistently
-3. Multi‑server config and /health servers list
-4. SSE logs endpoint and structured correlation IDs
-5. Clients: retries/timeouts/error objects; publish packages
-6. Dockerfile + compose; examples directory
-7. CI (GitHub Actions): lint/test/build, optional release jobs
+### Provider Adapter Interface
 
-## Agent Workstreams
+```typescript
+interface ProviderAdapter {
+  name: string  // "gemini", "openai", "xai"
 
-- Transport & Observability: stdio tuning, logs, correlation IDs, metrics
-- Tool Metadata: listTools normalization, schema quality, discovery cache
-- Clients: Python & TS packages with robust error handling and docs
-- DX & Ops: Docker, examples, CI, release workflows
+  // Translate MCP tool schema → provider format
+  translateSchema(mcpTool: MCPTool): ProviderToolSchema
+
+  // Translate all tools for this provider
+  translateAllTools(mcpTools: MCPTool[]): ProviderToolsResponse
+
+  // Translate provider invocation → MCP format
+  translateInvocation(providerCall: any): MCPToolCall
+
+  // Format result in provider-expected format
+  formatResult(mcpResult: any): ProviderResult
+
+  // Generate human-readable context (Phase 3)
+  formatForContext(tools: MCPTool[]): string
+}
+```
+
+### Design Principles
+
+- **Anthropic's MCP as the model**: Replicate the native MCP experience for providers without it
+- **Provider-agnostic core**: MCP client layer knows nothing about providers
+- **Adapter pattern**: Each provider gets a dedicated translator
+- **Preserve MCP semantics**: Tool schemas, execution, errors stay true to MCP
+- **No provider SDKs**: Gateway doesn't call provider APIs, only translates formats
+
+## Usage Example (Gemini)
+
+```python
+from mcp_tool_gateway import GatewayClient
+import google.generativeai as genai
+
+# 1. Initialize gateway client
+gateway = GatewayClient("http://localhost:8787")
+
+# 2. Get tools in Gemini format
+tools = gateway.get_tools("gemini", server="gtd-graph-memory")
+
+# 3. Create Gemini model with tools
+model = genai.GenerativeModel('gemini-1.5-pro', tools=tools)
+
+# 4. Generate content
+response = model.generate_content("What tasks do I have?")
+
+# 5. If model calls a function, execute via gateway
+if response.candidates[0].content.parts[0].function_call:
+    fc = response.candidates[0].content.parts[0].function_call
+    result = gateway.execute("gemini", fc, server="gtd-graph-memory")
+
+    # 6. Send result back to Gemini
+    response = model.generate_content([
+        response.candidates[0].content,
+        {"role": "function", "parts": [{
+            "function_response": {"name": fc.name, "response": result}
+        }]}
+    ])
+
+print(response.text)
+```
+
+## Backlog (Prioritized for Phase 1)
+
+1. **Design ProviderAdapter interface** - Core abstraction for all providers
+2. **Implement GeminiAdapter** - First concrete adapter (MCP → Gemini function_declarations)
+3. **Add `/tools/gemini` endpoint** - Return Gemini-formatted tools
+4. **Add `/execute` endpoint** - Provider-agnostic execution with translation
+5. **End-to-end Gemini test** - Prove the pattern works with real Gemini API
+6. **Multi-server config** - Support multiple MCP servers in parallel
+7. **OpenAI & xAI adapters** - Extend pattern to other providers
 
