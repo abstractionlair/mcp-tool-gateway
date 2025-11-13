@@ -86,15 +86,15 @@ export interface ServerSpec {
 Current default configuration using environment variables:
 
 ```bash
-GTD_GRAPH_DIST=/path/to/server/dist/index.js
-GTD_GRAPH_BASE_PATH=/data/base
-GTD_GRAPH_LOG_PATH=/data/logs/mcp.log
+MCP_SERVER_DIST=/path/to/server/dist/index.js
+MCP_BASE_PATH=/data/base
+MCP_LOG_PATH=/data/logs/mcp.log
 ```
 
 This is automatically converted to:
 ```typescript
 {
-  name: 'gtd-graph-memory',
+  name: 'default',
   transport: 'stdio',
   command: 'node',
   args: ['/path/to/server/dist/index.js'],

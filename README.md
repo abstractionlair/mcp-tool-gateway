@@ -41,7 +41,7 @@ import requests
 gateway_url = "http://localhost:8787"
 
 # 1. Get tools in Gemini format from the gateway
-response = requests.get(f"{gateway_url}/tools/gemini?server=gtd-graph-memory")
+response = requests.get(f"{gateway_url}/tools/gemini?server=default")
 tools = response.json()
 
 # 2. Create Gemini model with MCP tools
@@ -62,7 +62,7 @@ if response.candidates[0].content.parts[0].function_call:
             "name": function_call.name,
             "args": dict(function_call.args)
         },
-        "server": "gtd-graph-memory"
+        "server": "default"
     }).json()["result"]
 
     # 6. Send result back to Gemini
@@ -89,7 +89,7 @@ print(response.text)
 Example of the response format:
 
 ```bash
-$ curl 'http://localhost:8787/tools/gemini?server=gtd-graph-memory'
+$ curl 'http://localhost:8787/tools/gemini?server=default'
 {
   "function_declarations": [
     {
@@ -110,18 +110,18 @@ $ curl 'http://localhost:8787/tools/gemini?server=gtd-graph-memory'
 }
 ```
 
-See [docs/PLAN.md](docs/PLAN.md) for the full usage pattern with function calling.
+See [docs/PLAN.md](docs/PLAN.md) for the full usage pattern with function calling, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a system overview.
 
 ## Local Development
 
-1) Configure a target MCP server (example: graph-memory stdio server)
+1) Configure a target MCP server (stdio)
 
 Set environment variables so the gateway can spawn/connect:
 
 ```
-export GTD_GRAPH_DIST=/absolute/path/to/your/project/src/graph-memory-core/mcp/dist/index.js
-export GTD_GRAPH_BASE_PATH=/absolute/path/to/data/dir
-export GTD_GRAPH_LOG_PATH=/absolute/path/to/data/dir/mcp-calls.log
+export MCP_SERVER_DIST=/absolute/path/to/your/mcp/server/dist/index.js
+export MCP_BASE_PATH=/absolute/path/to/data/dir
+export MCP_LOG_PATH=/absolute/path/to/data/dir/mcp-calls.log
 ```
 
 2) Install and run the service
@@ -139,45 +139,93 @@ npm run dev  # or npm run start after build
 curl 'http://localhost:8787/health'
 
 # Get tools in raw MCP format
-curl 'http://localhost:8787/tools?server=gtd-graph-memory'
+curl 'http://localhost:8787/tools?server=default'
 
 # Get tools in Gemini format
-curl 'http://localhost:8787/tools/gemini?server=gtd-graph-memory'
+curl 'http://localhost:8787/tools/gemini?server=default'
 
 # Execute a tool (generic MCP format)
 curl -X POST 'http://localhost:8787/call_tool' \
   -H 'Content-Type: application/json' \
-  -d '{"server":"gtd-graph-memory","tool":"query_nodes","arguments":{}}'
+  -d '{"server":"default","tool":"add","arguments":{"a":1,"b":2}}'
 
 # Execute a tool (provider-specific format - Gemini)
 curl -X POST 'http://localhost:8787/execute' \
   -H 'Content-Type: application/json' \
-  -d '{"provider":"gemini","call":{"name":"query_nodes","args":{}},"server":"gtd-graph-memory"}'
+  -d '{"provider":"gemini","call":{"name":"add","args":{"a":1,"b":2}},"server":"default"}'
 ```
 
 Notes:
 - The service uses the official MCP JS client over stdio to connect/spawn.
-- `/logs` tails the file specified by `GTD_GRAPH_LOG_PATH`.
+- `/logs` tails the file specified by `MCP_LOG_PATH`.
 - Multiple servers will be supported by adding more specs; initial scaffold wires one.
 
 ## Testing
 
+The project includes a comprehensive test suite with unit, integration, and end-to-end (E2E) tests.
+
 ### Unit and Integration Tests
 
+These tests validate the gateway's internal logic without making any external API calls. The test suite includes:
+
+**Unit Tests (22 tests in `gemini-adapter.test.ts`)**:
+- Schema translation: MCP tool schemas → Gemini `function_declarations` format
+- Parameter handling: nested objects, arrays, enums, required fields
+- Sanitization: removal of unsupported fields (`default`, `oneOf`, `maximum`)
+- Invocation translation: Gemini function calls → MCP format with validation
+- Edge cases: missing fields, invalid inputs, empty schemas
+
+**Integration Tests (5 tests in `gateway.test.ts`)**:
+- HTTP endpoint functionality: `/health`, `/tools`, `/tools/gemini`, `/execute`
+- Provider adapter integration with live MCP connections
+- Request validation and error handling
+- Multi-step workflows: ontology creation → node creation → queries
+
+Integration prerequisites:
+
+- Integration tests run against a local MCP server via the MCP JS client. Set these environment variables (same as in Local Development) so the test suite can spawn/connect to the server:
+
+```
+export MCP_SERVER_DIST=/absolute/path/to/your/mcp/server/dist/index.js
+export MCP_BASE_PATH=/absolute/path/to/data/dir
+export MCP_LOG_PATH=/absolute/path/to/data/dir/mcp-calls.log  # optional but recommended
+```
+
+Run all tests:
 ```bash
 cd node/service
 npm test
 ```
 
-Or run only unit tests (excludes E2E):
-
+Or run only unit/integration tests (excludes E2E):
 ```bash
 npm run test:unit
 ```
 
-### End-to-End Tests with Real Gemini API
+Run only integration tests:
+```bash
+cd node/service
+vitest run gateway.test.ts
+```
 
-E2E tests validate the complete workflow with real API calls. See [docs/E2E_TESTING.md](docs/E2E_TESTING.md) for detailed instructions.
+### End-to-End Tests
+
+E2E tests validate the complete workflow from tool discovery to execution with a live LLM. See [docs/E2E_TESTING.md](docs/E2E_TESTING.md) for detailed instructions.
+
+#### With Ollama (Local LLM)
+
+This is the recommended E2E test for most development. It uses a local Ollama instance to simulate the full AI workflow without needing API keys or an internet connection.
+
+**Quick start:**
+```bash
+# Make sure Ollama is running
+cd node/service
+npm test -- ollama-local-e2e.test.ts
+```
+
+#### With Google Gemini (API-based)
+
+This test validates the workflow with real API calls to the Google Gemini API.
 
 **Quick start:**
 
@@ -193,7 +241,24 @@ npm run test:e2e
 
 **Security note:** Never commit API keys. The `.env` file is gitignored for local development.
 
-If `GEMINI_API_KEY` is not set, E2E tests are automatically skipped.
+If `GEMINI_API_KEY` is not set, the Gemini E2E tests are automatically skipped.
+
+#### With HTTP Transport
+
+This test validates the gateway's HTTP/SSE transport support for remote MCP server connections.
+
+**Quick start:**
+```bash
+cd node/service
+
+# Set your Gemini API key
+export GEMINI_API_KEY="your_api_key_here"
+
+# Run HTTP transport E2E test
+npm test -- gemini-http-e2e.test.ts
+```
+
+See [docs/HTTP_TRANSPORT.md](docs/HTTP_TRANSPORT.md) for configuration details and use cases.
 
 ## Project Plan
 

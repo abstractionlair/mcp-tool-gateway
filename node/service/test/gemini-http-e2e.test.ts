@@ -26,9 +26,25 @@ import path from 'node:path'
 import { spawn, ChildProcess } from 'node:child_process'
 import { McpClientManager, ServerSpec } from '../src/mcpManager.js'
 import express from 'express'
-import { runLocalTool } from '../src/runLocalTool.js'
+import fs from 'node:fs'
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+let GEMINI_API_KEY = process.env.GEMINI_API_KEY
+if (!GEMINI_API_KEY) {
+  try {
+    const rootEnvPath = path.join(process.cwd(), '..', '..', '.env')
+    if (fs.existsSync(rootEnvPath)) {
+      const text = fs.readFileSync(rootEnvPath, 'utf-8')
+      for (const line of text.split(/\r?\n/)) {
+        const m = line.match(/^\s*(?:export\s+)?GEMINI_API_KEY\s*=\s*['\"]?([^'\"\n]+)['\"]?\s*$/)
+        if (m) {
+          GEMINI_API_KEY = m[1]
+          process.env.GEMINI_API_KEY = GEMINI_API_KEY
+          break
+        }
+      }
+    }
+  } catch {}
+}
 
 // Skip all tests if no API key provided
 const describeOrSkip = GEMINI_API_KEY ? describe : describe.skip
@@ -99,7 +115,7 @@ describeOrSkip('Gemini HTTP Transport E2E Integration', () => {
     const manager = new McpClientManager(() => {
       const specs: ServerSpec[] = [
         {
-          name: 'gtd-graph-memory',
+          name: 'test-mcp',
           transport: 'http',
           url: HTTP_SERVER_URL,
           logPath,
@@ -111,7 +127,7 @@ describeOrSkip('Gemini HTTP Transport E2E Integration', () => {
     // Add routes
     testApp.get('/tools/gemini', async (req, res) => {
       try {
-        const serverName = (req.query.server as string) || 'gtd-graph-memory'
+        const serverName = (req.query.server as string) || 'test-mcp'
         const result = await manager.listTools(serverName)
         const tools = (result as any)?.tools || []
 
@@ -131,7 +147,7 @@ describeOrSkip('Gemini HTTP Transport E2E Integration', () => {
     testApp.post('/execute', async (req, res) => {
       try {
         const { provider, call, server } = req.body
-        const serverName = server || 'gtd-graph-memory'
+        const serverName = server || 'test-mcp'
 
         if (provider !== 'gemini') {
           return res.status(400).json({ error: 'Only gemini provider supported in this test' })
@@ -146,7 +162,7 @@ describeOrSkip('Gemini HTTP Transport E2E Integration', () => {
 
     testApp.get('/logs', async (req, res) => {
       try {
-        const serverName = (req.query.server as string) || 'gtd-graph-memory'
+        const serverName = (req.query.server as string) || 'test-mcp'
         const since = req.query.since as string | undefined
         const limit = parseInt((req.query.limit as string) || '200', 10)
 
@@ -174,7 +190,7 @@ describeOrSkip('Gemini HTTP Transport E2E Integration', () => {
     // Step 1: Get tools in Gemini format
     const toolsResponse = await request(testApp)
       .get('/tools/gemini')
-      .query({ server: 'gtd-graph-memory' })
+      .query({ server: 'test-mcp' })
 
     expect(toolsResponse.status).toBe(200)
     expect(toolsResponse.body).toHaveProperty('function_declarations')
@@ -221,7 +237,7 @@ describeOrSkip('Gemini HTTP Transport E2E Integration', () => {
           name: mathFunctionCall.name,
           args: mathFunctionCall.args,
         },
-        server: 'gtd-graph-memory',
+        server: 'test-mcp',
       })
 
     expect(executeResponse.status).toBe(200)
@@ -259,7 +275,7 @@ describeOrSkip('Gemini HTTP Transport E2E Integration', () => {
     console.log('\n=== Verifying Logs (HTTP Transport) ===')
     const logsResponse = await request(testApp)
       .get('/logs')
-      .query({ server: 'gtd-graph-memory', limit: 100 })
+      .query({ server: 'test-mcp', limit: 100 })
 
     expect(logsResponse.status).toBe(200)
     const logs = Array.isArray(logsResponse.body) ? logsResponse.body : []
@@ -278,7 +294,7 @@ describeOrSkip('Gemini HTTP Transport E2E Integration', () => {
     // Get tools
     const toolsResponse = await request(testApp)
       .get('/tools/gemini')
-      .query({ server: 'gtd-graph-memory' })
+      .query({ server: 'test-mcp' })
 
     const tools = toolsResponse.body.function_declarations
 
@@ -310,7 +326,7 @@ describeOrSkip('Gemini HTTP Transport E2E Integration', () => {
           name: functionCall.name,
           args: functionCall.args,
         },
-        server: 'gtd-graph-memory',
+        server: 'test-mcp',
       })
 
     expect(executeResponse.status).toBe(200)

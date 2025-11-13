@@ -24,6 +24,7 @@ import { app } from '../src/server.js'
 import { Ollama } from 'ollama'
 import type { ListResponse, ProgressResponse } from 'ollama'
 import path from 'node:path'
+import { spawn, type ChildProcess } from 'node:child_process'
 
 const LOG_PREFIX = '[Ollama Local E2E]'
 const OLLAMA_HOST = process.env.OLLAMA_HOST ?? 'http://127.0.0.1:11434'
@@ -79,6 +80,49 @@ const ensureModelAvailable = async (ollama: Ollama, model: string): Promise<void
   }
 }
 
+let startedOllamaProc: ChildProcess | null = null
+
+const ensureOllamaServer = async (): Promise<void> => {
+  // Quick probe
+  const probe = new Ollama({ host: OLLAMA_HOST })
+  try {
+    await listModels(probe)
+    return
+  } catch {
+    // Not reachable; try to start if local
+  }
+
+  const isLocal = /^https?:\/\/(127\.0\.0\.1|localhost):\d+/.test(OLLAMA_HOST)
+  if (!isLocal) {
+    throw new Error(`${LOG_PREFIX} Unable to reach Ollama at ${OLLAMA_HOST} and not a local host; cannot auto-start.`)
+  }
+
+  try {
+    startedOllamaProc = spawn('ollama', ['serve'], { stdio: 'ignore' })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    throw new Error(`${LOG_PREFIX} Failed to spawn 'ollama serve'. Ensure Ollama CLI is installed. Original error: ${msg}`)
+  }
+
+  // Wait for readiness
+  const start = Date.now()
+  const timeoutMs = 60_000
+  const client = new Ollama({ host: OLLAMA_HOST })
+  // poll until list works
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      await listModels(client)
+      return
+    } catch {
+      if (Date.now() - start > timeoutMs) {
+        throw new Error(`${LOG_PREFIX} Timed out waiting for Ollama to start on ${OLLAMA_HOST}`)
+      }
+      await new Promise((r) => setTimeout(r, 1000))
+    }
+  }
+}
+
 const logPullProgress = (progress: ProgressResponse): void => {
   if (!progress?.status) {
     return
@@ -122,15 +166,16 @@ describe('Ollama Local E2E Integration', () => {
     }
 
     // Configure environment to use simple-test-server
-    process.env.GTD_GRAPH_DIST = testServerPath
-    process.env.GTD_GRAPH_BASE_PATH = path.join(process.cwd(), '.tmp', 'ollama-e2e-test')
-    process.env.GTD_GRAPH_LOG_PATH = path.join(process.cwd(), '.tmp', 'ollama-e2e-test', 'mcp-calls.log')
+    process.env.MCP_SERVER_DIST = testServerPath
+    process.env.MCP_BASE_PATH = path.join(process.cwd(), '.tmp', 'ollama-e2e-test')
+    process.env.MCP_LOG_PATH = path.join(process.cwd(), '.tmp', 'ollama-e2e-test', 'mcp-calls.log')
 
     // Create test directory
     const fs2 = await import('node:fs')
-    fs2.mkdirSync(process.env.GTD_GRAPH_BASE_PATH, { recursive: true })
+    fs2.mkdirSync(process.env.MCP_BASE_PATH!, { recursive: true })
 
-    // Initialize Ollama
+    // Initialize or auto-start Ollama if needed
+    await ensureOllamaServer()
     const client = new Ollama({ host: OLLAMA_HOST })
     await ensureModelAvailable(client, OLLAMA_E2E_MODEL)
     ollama = client
@@ -138,6 +183,8 @@ describe('Ollama Local E2E Integration', () => {
 
   afterAll(() => {
     ollama?.abort()
+    // Stop auto-started Ollama if we launched it locally
+    try { startedOllamaProc?.kill() } catch {}
   })
 
   it('completes full workflow: tool discovery → Ollama call → execution → response', async () => {
@@ -146,7 +193,7 @@ describe('Ollama Local E2E Integration', () => {
     // Step 1: Get tools in Gemini format
     const toolsResponse = await request(app)
       .get('/tools/gemini')
-      .query({ server: 'gtd-graph-memory' })
+      .query({ server: 'default' })
 
     expect(toolsResponse.status).toBe(200)
     expect(toolsResponse.body).toHaveProperty('function_declarations')
@@ -217,7 +264,7 @@ describe('Ollama Local E2E Integration', () => {
           name: addCall.function.name,
           args: convertedArgs,
         },
-        server: 'gtd-graph-memory',
+        server: 'default',
       })
 
     expect(executeResponse.status).toBe(200)
@@ -263,7 +310,7 @@ describe('Ollama Local E2E Integration', () => {
     console.log('\n=== Verifying Logs ===')
     const logsResponse = await request(app)
       .get('/logs')
-      .query({ server: 'gtd-graph-memory', limit: 100 })
+      .query({ server: 'default', limit: 100 })
 
     expect(logsResponse.status).toBe(200)
     const logs = Array.isArray(logsResponse.body) ? logsResponse.body : []
@@ -284,7 +331,7 @@ describe('Ollama Local E2E Integration', () => {
     // Get tools
     const toolsResponse = await request(app)
       .get('/tools/gemini')
-      .query({ server: 'gtd-graph-memory' })
+      .query({ server: 'default' })
 
     const tools = toolsResponse.body.function_declarations
 
@@ -338,7 +385,7 @@ describe('Ollama Local E2E Integration', () => {
           name: weatherCall.function.name,
           args: weatherCall.function.arguments,
         },
-        server: 'gtd-graph-memory',
+        server: 'default',
       })
 
     expect(executeResponse.status).toBe(200)

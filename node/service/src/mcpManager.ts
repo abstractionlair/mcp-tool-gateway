@@ -1,3 +1,4 @@
+import './env.js'
 import { ReadStream, createReadStream, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -11,7 +12,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
-import { runLocalTool } from './runLocalTool.js'
+// Removed graph-memory-specific local runner to keep gateway provider-agnostic
 
 export type TransportType = 'stdio' | 'http'
 
@@ -79,44 +80,47 @@ export class McpClientManager {
     const h = await this.ensure(serverName)
     // Try multiple call paths to accommodate SDK variations
     const errors: string[] = []
-    const timeoutOpts = { timeout: 500 }
-    try {
-      if (typeof h.client.request === 'function') {
-        return await h.client.request({ method: 'tools/call', params: { name: tool, arguments: args } }, undefined, timeoutOpts)
-      }
-    } catch (e: any) { errors.push(String(e?.message ?? e)) }
     try {
       if (typeof h.client.callTool === 'function') {
         // Some SDK builds accept an object param
-        return await h.client.callTool({ name: tool, arguments: args }, undefined, timeoutOpts)
+        return await h.client.callTool({ name: tool, arguments: args })
       }
     } catch (e: any) { errors.push(String(e?.message ?? e)) }
     try {
       if (typeof h.client.callTool === 'function') {
         // Others accept (name, arguments)
-        return await h.client.callTool(tool, args, timeoutOpts)
+        return await h.client.callTool(tool, args)
       }
     } catch (e: any) { errors.push(String(e?.message ?? e)) }
-    // Fallback to local runner using dist entry path when available
-    if (h.spec.args && h.spec.args.length > 0) {
-      const distEntry = h.spec.args[0]
-      const basePath = h.spec.env?.BASE_PATH ?? ''
-      if (distEntry && basePath) {
-        return await runLocalTool(distEntry, basePath, tool, args)
+    try {
+      const timeoutOpts = { timeout: 1000 }
+      if (typeof h.client.request === 'function') {
+        return await h.client.request({ method: 'tools/call', params: { name: tool, arguments: args } }, undefined, timeoutOpts)
       }
-    }
+    } catch (e: any) { errors.push(String(e?.message ?? e)) }
     throw new Error('MCP callTool failed: ' + errors.join(' | '))
   }
 
   async listTools(serverName: string): Promise<unknown> {
     const h = await this.ensure(serverName)
-    if (typeof h.client.listTools === 'function') {
-      return await h.client.listTools()
-    }
-    if (typeof h.client.request === 'function') {
-      return await h.client.request('tools/list', {})
-    }
-    throw new Error('MCP client does not expose listTools/request methods')
+    const errors: string[] = []
+    const timeoutOpts = { timeout: 1000 }
+    try {
+      if (typeof h.client.listTools === 'function') {
+        return await h.client.listTools()
+      }
+    } catch (e: any) { errors.push(String(e?.message ?? e)) }
+    try {
+      if (typeof h.client.request === 'function') {
+        return await h.client.request({ method: 'tools/list', params: {} }, undefined, timeoutOpts)
+      }
+    } catch (e: any) { errors.push(String(e?.message ?? e)) }
+    try {
+      if (typeof h.client.request === 'function') {
+        return await h.client.request('tools/list', {})
+      }
+    } catch (e: any) { errors.push(String(e?.message ?? e)) }
+    throw new Error('MCP listTools failed: ' + errors.join(' | '))
   }
 
   readLogs(serverName: string, since?: string, limit = 200): unknown[] {
@@ -142,14 +146,15 @@ export class McpClientManager {
 }
 
 export function defaultBootstrap(): ServerSpec[] {
-  // For now support a single graph-memory server via environment variables
-  const dist = process.env.GTD_GRAPH_DIST
-  const base = process.env.GTD_GRAPH_BASE_PATH
-  const log = process.env.GTD_GRAPH_LOG_PATH
+  // Single-server bootstrap via generic environment variables
+  // Set MCP_SERVER_DIST to the MCP server entry point and MCP_BASE_PATH for its data dir
+  const dist = process.env.MCP_SERVER_DIST
+  const base = process.env.MCP_BASE_PATH
+  const log = process.env.MCP_LOG_PATH
   if (!dist || !base) return []
   return [{
-    name: 'gtd-graph-memory',
-    command: 'node',
+    name: 'default',
+    command: process.execPath,
     args: [dist],
     env: { BASE_PATH: base, MCP_CALL_LOG: log ?? '' },
     logPath: log,

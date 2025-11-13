@@ -1,3 +1,4 @@
+import './env.js'
 import express from 'express'
 import { McpClientManager, defaultBootstrap } from './mcpManager.js'
 import { GeminiAdapter, MCPTool, ProviderAdapter } from './adapters/index.js'
@@ -28,7 +29,7 @@ app.get('/health', (_req, res) => {
 
 app.get('/tools', async (req, res) => {
   try {
-    const server = (req.query.server as string | undefined) ?? 'gtd-graph-memory'
+    const server = (req.query.server as string | undefined) ?? 'default'
     const tools = await manager.listTools(server)
     res.json(tools)
   } catch (error: any) {
@@ -38,7 +39,7 @@ app.get('/tools', async (req, res) => {
 
 app.get('/tools/gemini', async (req, res) => {
   try {
-    const server = (req.query.server as string | undefined) ?? 'gtd-graph-memory'
+    const server = (req.query.server as string | undefined) ?? 'default'
     const toolsResponse = await manager.listTools(server)
 
     // Handle different SDK response formats: { tools: [...] } or [...]
@@ -56,7 +57,7 @@ app.get('/tools/gemini', async (req, res) => {
 
 app.get('/logs', (req, res) => {
   try {
-    const server = (req.query.server as string | undefined) ?? 'gtd-graph-memory'
+    const server = (req.query.server as string | undefined) ?? 'default'
     const since = req.query.since as string | undefined
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 200
     const entries = manager.readLogs(server, since, limit)
@@ -103,7 +104,7 @@ app.post('/execute', async (req, res) => {
     const mcpCall = adapter.translateInvocation(call)
 
     // Execute via MCP
-    const serverName = server ?? 'gtd-graph-memory'
+    const serverName = server ?? 'default'
     const mcpResult = await manager.callTool(serverName, mcpCall.name, mcpCall.arguments)
 
     // Format result for provider

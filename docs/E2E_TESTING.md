@@ -1,4 +1,42 @@
-# End-to-End Testing with Real AI Providers
+# End-to-End Testing
+
+This document describes how to run end-to-end (E2E) integration tests.
+
+The test suite includes three types of E2E tests:
+1.  **Local E2E Tests with Ollama**: Validates the full workflow using a local LLM. **This is recommended for most development** as it requires no API keys and runs entirely offline.
+2.  **API-based E2E Tests with Google Gemini**: Validates the workflow with a real AI provider, making live API calls. This is useful for ensuring compatibility with the specific provider.
+3.  **HTTP Transport E2E Tests**: Validates the complete workflow using HTTP/SSE transport instead of stdio, testing remote server connection patterns.
+
+## Local E2E Testing with Ollama
+
+This test validates the complete workflow using a local Ollama LLM, providing a way to test the gateway's logic without external API calls or network dependency.
+
+### Prerequisites
+
+1.  **Build the Test Server**:
+    ```bash
+    cd node/service/test/fixtures
+    npx tsc -p tsconfig.json
+    ```
+
+2.  **Install and Run Ollama**:
+    - Download and install Ollama from [ollama.com](https://ollama.com/).
+    - Start the Ollama server. Typically, this is done by running the Ollama application or via the command line:
+      ```bash
+      ollama serve
+      ```
+    - The test will automatically pull the required model (`qwen3:8b` by default) if it's not already available.
+
+### Running the Test
+
+```bash
+cd node/service
+npm test -- ollama-local-e2e.test.ts
+```
+
+The test will connect to your local Ollama instance, run the full tool-use workflow, and execute tool calls against the local test MCP server.
+
+## API-based E2E Testing with Google Gemini
 
 This document describes how to run E2E integration tests that make real API calls to AI providers like Google Gemini.
 
@@ -26,6 +64,26 @@ npx tsc -p tsconfig.json
 ```
 
 This creates `dist/simple-test-server.js` which the tests will use.
+
+#### Test Fixture Design
+
+The `simple-test-server` is a minimal MCP server implementation designed to provide comprehensive test coverage for different tool parameter types and workflow patterns:
+
+**Tools provided:**
+- **`add(a, b)`** and **`multiply(a, b)`**: Number parameters for testing arithmetic operations and type handling
+- **`get_weather(location)`**: String parameters for testing text-based inputs
+- **`store_value(key, value)`** and **`get_value(key)`**: State management for testing multi-step workflows and stateful interactions
+
+**Design rationale:**
+- **Minimal dependencies**: Simple TypeScript implementation with no external service dependencies
+- **Deterministic results**: Math operations return predictable values for assertion testing
+- **State testing**: Key-value store validates that multiple tool calls can share state
+- **Multiple parameter types**: Covers numbers, strings, and object types commonly used in MCP tools
+- **Logging capability**: Implements `MCP_CALL_LOG` environment variable for execution verification
+
+The test server is available in two variants:
+- `simple-test-server.ts`: Stdio transport (default)
+- `simple-test-server-http.ts`: HTTP/SSE transport for testing remote connections
 
 ### 2. Get a Gemini API Key
 
@@ -101,7 +159,7 @@ GEMINI_API_KEY="your_api_key_here" npm test -- gemini-e2e.test.ts
 
 ### When API Key is Present
 - Tests run and make real API calls to Gemini
-- Uses `gemini-1.5-flash` model (most cost-effective)
+- Uses `gemini-2.5-flash` model (most cost-effective)
 - Typically costs < $0.01 per test run
 - Takes 10-30 seconds depending on API latency
 
@@ -138,7 +196,7 @@ GEMINI_API_KEY="your_api_key_here" npm test -- gemini-e2e.test.ts
 
 ## Cost Considerations
 
-The E2E tests use the `gemini-1.5-flash` model which is:
+The E2E tests use the `gemini-2.5-flash` model which is:
 - **Very cost-effective**: ~$0.075 per 1M input tokens, $0.30 per 1M output tokens
 - **Fast**: Optimized for speed
 - **Sufficient for testing**: Provides reliable function calling
@@ -213,6 +271,51 @@ jobs:
 ### Tests timeout
 - **Cause**: Network issues or slow API responses
 - **Solution**: Tests have 30-60s timeouts; check network connection
+
+## HTTP Transport E2E Testing
+
+The gateway supports both stdio and HTTP/SSE transports for connecting to MCP servers. The HTTP transport E2E test validates the complete workflow using a remote MCP server connection.
+
+### What This Test Validates
+
+The `gemini-http-e2e.test.ts` test verifies:
+- Starting an HTTP MCP server on a local port
+- Gateway connecting to MCP server via HTTP/SSE transport instead of stdio
+- Tool discovery through HTTP transport (`/tools/gemini`)
+- Gemini API function calling with HTTP-connected tools
+- Tool execution via gateway's `/execute` endpoint with HTTP backend
+- Multi-step workflows with HTTP transport
+- Log verification for HTTP-based tool calls
+
+### Running HTTP Transport Tests
+
+```bash
+cd node/service
+
+# Set your Gemini API key
+export GEMINI_API_KEY="your_api_key_here"
+
+# Run HTTP E2E tests
+npm test -- gemini-http-e2e.test.ts
+```
+
+### How It Works
+
+1. Test spawns `simple-test-server-http.js` as a subprocess on port 3001
+2. Gateway creates an HTTP/SSE client connection to `http://localhost:3001/sse`
+3. Tools are discovered via the HTTP connection
+4. Gemini API is called with the tools
+5. Tool executions flow through: Gemini → Gateway → HTTP transport → MCP server
+6. Results return through the same HTTP path
+
+### Use Cases for HTTP Transport
+
+- **Remote MCP servers**: Connect to servers running on different machines or in containers
+- **Cloud deployments**: MCP servers deployed as microservices
+- **Scalability testing**: Validate gateway works with network-based server connections
+- **Production patterns**: Test realistic deployment architectures
+
+For detailed HTTP transport configuration and usage, see [HTTP_TRANSPORT.md](./HTTP_TRANSPORT.md).
 
 ## Adding More E2E Tests
 

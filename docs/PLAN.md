@@ -179,7 +179,7 @@ A translation layer that:
       "name": "query_nodes",
       "args": { "query": "tasks" }
     },
-    "server": "gtd-graph-memory"
+    "server": "default"
   }
   ```
 
@@ -205,9 +205,9 @@ A translation layer that:
 ## Configuration
 
 - Env (current, single server):
-  - GTD_GRAPH_DIST: absolute path to MCP server dist entry (index.js)
-  - GTD_GRAPH_BASE_PATH: data path for server
-  - GTD_GRAPH_LOG_PATH: path for MCP_CALL_LOG
+  - MCP_SERVER_DIST: absolute path to MCP server dist entry (index.js)
+  - MCP_BASE_PATH: data path for server
+  - MCP_LOG_PATH: path for MCP_CALL_LOG
 - Next: multi‑server JSON config (path), override via env
 
 ## Testing
@@ -253,7 +253,7 @@ A translation layer that:
                           ↕
 ┌─────────────────────────────────────────────────────────┐
 │                    MCP Servers                           │
-│         (graph-memory, filesystem, etc.)                │
+│         (filesystem, simple-test, etc.)                 │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -298,7 +298,7 @@ import google.generativeai as genai
 gateway = GatewayClient("http://localhost:8787")
 
 # 2. Get tools in Gemini format
-tools = gateway.get_tools("gemini", server="gtd-graph-memory")
+tools = gateway.get_tools("gemini", server="default")
 
 # 3. Create Gemini model with tools
 model = genai.GenerativeModel('gemini-1.5-pro', tools=tools)
@@ -309,7 +309,7 @@ response = model.generate_content("What tasks do I have?")
 # 5. If model calls a function, execute via gateway
 if response.candidates[0].content.parts[0].function_call:
     fc = response.candidates[0].content.parts[0].function_call
-    result = gateway.execute("gemini", fc, server="gtd-graph-memory")
+    result = gateway.execute("gemini", fc, server="default")
 
     # 6. Send result back to Gemini
     response = model.generate_content([
@@ -337,4 +337,3 @@ print(response.text)
 3. **Provider auto-detection** - Detect provider from request format
 4. **Multi-server config** - Support multiple MCP servers in parallel
 5. **Enhanced error handling** - Provider-specific error formatting
-

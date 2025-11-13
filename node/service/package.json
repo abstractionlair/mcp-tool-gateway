@@ -7,6 +7,7 @@
     "dev": "tsx src/server.ts",
     "build": "tsc -p tsconfig.json",
     "build:test-server": "cd test/fixtures && npx tsc -p tsconfig.json",
+    "pretest": "npm run build:test-server",
     "start": "node dist/server.js",
     "test": "vitest run",
     "test:e2e": "npm run build:test-server && vitest run gemini-e2e.test.ts",
