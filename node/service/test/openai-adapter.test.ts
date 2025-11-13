@@ -1,0 +1,541 @@
+import { describe, it, expect } from 'vitest'
+import { OpenAIAdapter } from '../src/adapters/openai.js'
+import { MCPTool } from '../src/adapters/types.js'
+
+describe('OpenAIAdapter', () => {
+  const adapter = new OpenAIAdapter()
+
+  describe('translateSchema', () => {
+    it('translates basic MCP tool with inputSchema', () => {
+      const mcpTool: MCPTool = {
+        name: 'query_nodes',
+        description: 'Query nodes from the graph',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Search query',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum results',
+            },
+          },
+          required: ['query'],
+        },
+      }
+
+      const result = adapter.translateSchema(mcpTool)
+
+      expect(result).toEqual({
+        type: 'function',
+        function: {
+          name: 'query_nodes',
+          description: 'Query nodes from the graph',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'Search query',
+              },
+              limit: {
+                type: 'number',
+                description: 'Maximum results',
+              },
+            },
+            required: ['query'],
+          },
+        },
+      })
+    })
+
+    it('includes type: function wrapper', () => {
+      const mcpTool: MCPTool = {
+        name: 'test_tool',
+        description: 'Test',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      }
+
+      const result = adapter.translateSchema(mcpTool)
+
+      expect(result.type).toBe('function')
+      expect(result).toHaveProperty('function')
+    })
+
+    it('handles tool with parameters field instead of inputSchema', () => {
+      const mcpTool: MCPTool = {
+        name: 'create_node',
+        description: 'Create a new node',
+        parameters: {
+          type: 'object',
+          properties: {
+            content: {
+              type: 'string',
+            },
+          },
+        },
+      }
+
+      const result = adapter.translateSchema(mcpTool)
+
+      expect(result.function.name).toBe('create_node')
+      expect(result.function.parameters.properties.content).toEqual({ type: 'string' })
+    })
+
+    it('provides default description if missing', () => {
+      const mcpTool: MCPTool = {
+        name: 'test_tool',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      }
+
+      const result = adapter.translateSchema(mcpTool)
+
+      expect(result.function.description).toBe('MCP tool: test_tool')
+    })
+
+    it('omits required array when empty', () => {
+      const mcpTool: MCPTool = {
+        name: 'test_tool',
+        description: 'Test',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            optional: { type: 'string' },
+          },
+          required: [],
+        },
+      }
+
+      const result = adapter.translateSchema(mcpTool)
+
+      expect(result.function.parameters.required).toBeUndefined()
+    })
+
+    it('handles nested object properties', () => {
+      const mcpTool: MCPTool = {
+        name: 'complex_tool',
+        description: 'Complex tool with nested properties',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            config: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                enabled: { type: 'boolean' },
+              },
+              required: ['name'],
+            },
+          },
+        },
+      }
+
+      const result = adapter.translateSchema(mcpTool)
+
+      expect(result.function.parameters.properties.config).toEqual({
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          enabled: { type: 'boolean' },
+        },
+        required: ['name'],
+      })
+    })
+
+    it('handles array properties with items', () => {
+      const mcpTool: MCPTool = {
+        name: 'array_tool',
+        description: 'Tool with array parameter',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            tags: {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+            },
+          },
+        },
+      }
+
+      const result = adapter.translateSchema(mcpTool)
+
+      expect(result.function.parameters.properties.tags).toEqual({
+        type: 'array',
+        items: { type: 'string' },
+      })
+    })
+
+    it('handles enum properties', () => {
+      const mcpTool: MCPTool = {
+        name: 'enum_tool',
+        description: 'Tool with enum',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            status: {
+              type: 'string',
+              enum: ['pending', 'completed', 'cancelled'],
+              description: 'Task status',
+            },
+          },
+        },
+      }
+
+      const result = adapter.translateSchema(mcpTool)
+
+      expect(result.function.parameters.properties.status).toEqual({
+        type: 'string',
+        enum: ['pending', 'completed', 'cancelled'],
+        description: 'Task status',
+      })
+    })
+
+    it('preserves default values (supported by OpenAI)', () => {
+      const mcpTool: MCPTool = {
+        name: 'default_tool',
+        description: 'Tool with default values',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            limit: {
+              type: 'number',
+              default: 10,
+              description: 'Result limit',
+            },
+            format: {
+              type: 'string',
+              default: 'json',
+            },
+          },
+        },
+      }
+
+      const result = adapter.translateSchema(mcpTool)
+
+      expect(result.function.parameters.properties.limit).toEqual({
+        type: 'number',
+        default: 10,
+        description: 'Result limit',
+      })
+      expect(result.function.parameters.properties.format).toEqual({
+        type: 'string',
+        default: 'json',
+      })
+    })
+
+    it('preserves minimum and maximum constraints', () => {
+      const mcpTool: MCPTool = {
+        name: 'constrained_tool',
+        description: 'Tool with constraints',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            age: {
+              type: 'number',
+              minimum: 0,
+              maximum: 120,
+            },
+          },
+        },
+      }
+
+      const result = adapter.translateSchema(mcpTool)
+
+      expect(result.function.parameters.properties.age).toEqual({
+        type: 'number',
+        minimum: 0,
+        maximum: 120,
+      })
+    })
+
+    it('preserves string length constraints', () => {
+      const mcpTool: MCPTool = {
+        name: 'string_tool',
+        description: 'Tool with string constraints',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            username: {
+              type: 'string',
+              minLength: 3,
+              maxLength: 20,
+              pattern: '^[a-zA-Z0-9_]+$',
+            },
+          },
+        },
+      }
+
+      const result = adapter.translateSchema(mcpTool)
+
+      expect(result.function.parameters.properties.username).toEqual({
+        type: 'string',
+        minLength: 3,
+        maxLength: 20,
+        pattern: '^[a-zA-Z0-9_]+$',
+      })
+    })
+
+    it('preserves array constraints', () => {
+      const mcpTool: MCPTool = {
+        name: 'array_constraints_tool',
+        description: 'Tool with array constraints',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            items: {
+              type: 'array',
+              minItems: 1,
+              maxItems: 10,
+              items: { type: 'string' },
+            },
+          },
+        },
+      }
+
+      const result = adapter.translateSchema(mcpTool)
+
+      expect(result.function.parameters.properties.items).toEqual({
+        type: 'array',
+        minItems: 1,
+        maxItems: 10,
+        items: { type: 'string' },
+      })
+    })
+
+    it('handles additionalProperties', () => {
+      const mcpTool: MCPTool = {
+        name: 'flexible_tool',
+        description: 'Tool with additionalProperties',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+          },
+          additionalProperties: true,
+        },
+      }
+
+      const result = adapter.translateSchema(mcpTool)
+
+      expect(result.function.parameters).toHaveProperty('additionalProperties', true)
+    })
+
+    it('handles additionalProperties false', () => {
+      const mcpTool: MCPTool = {
+        name: 'strict_tool',
+        description: 'Tool with no additional properties',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+      }
+
+      const result = adapter.translateSchema(mcpTool)
+
+      expect(result.function.parameters).toHaveProperty('additionalProperties', false)
+    })
+  })
+
+  describe('translateAllTools', () => {
+    it('translates multiple tools to OpenAI format', () => {
+      const mcpTools: MCPTool[] = [
+        {
+          name: 'tool1',
+          description: 'First tool',
+          inputSchema: {
+            type: 'object',
+            properties: { arg1: { type: 'string' } },
+          },
+        },
+        {
+          name: 'tool2',
+          description: 'Second tool',
+          inputSchema: {
+            type: 'object',
+            properties: { arg2: { type: 'number' } },
+          },
+        },
+      ]
+
+      const result = adapter.translateAllTools(mcpTools)
+
+      expect(result).toHaveProperty('tools')
+      expect(result.tools).toHaveLength(2)
+      expect(result.tools[0].type).toBe('function')
+      expect(result.tools[0].function.name).toBe('tool1')
+      expect(result.tools[1].function.name).toBe('tool2')
+    })
+
+    it('returns empty tools array for empty input', () => {
+      const result = adapter.translateAllTools([])
+
+      expect(result).toEqual({ tools: [] })
+    })
+  })
+
+  describe('translateInvocation', () => {
+    it('translates OpenAI function call with JSON string arguments to MCP format', () => {
+      const openaiCall = {
+        name: 'query_nodes',
+        arguments: '{"query":"test query","limit":10}',
+      }
+
+      const result = adapter.translateInvocation(openaiCall)
+
+      expect(result).toEqual({
+        name: 'query_nodes',
+        arguments: {
+          query: 'test query',
+          limit: 10,
+        },
+      })
+    })
+
+    it('handles arguments as object directly (flexible)', () => {
+      const openaiCall = {
+        name: 'query_nodes',
+        arguments: {
+          query: 'test query',
+          limit: 10,
+        },
+      }
+
+      const result = adapter.translateInvocation(openaiCall)
+
+      expect(result).toEqual({
+        name: 'query_nodes',
+        arguments: {
+          query: 'test query',
+          limit: 10,
+        },
+      })
+    })
+
+    it('handles missing arguments field', () => {
+      const openaiCall = {
+        name: 'create_node',
+      }
+
+      const result = adapter.translateInvocation(openaiCall)
+
+      expect(result).toEqual({
+        name: 'create_node',
+        arguments: {},
+      })
+    })
+
+    it('handles empty arguments string', () => {
+      const openaiCall = {
+        name: 'list_nodes',
+        arguments: '{}',
+      }
+
+      const result = adapter.translateInvocation(openaiCall)
+
+      expect(result).toEqual({
+        name: 'list_nodes',
+        arguments: {},
+      })
+    })
+
+    it('throws error for invalid call object', () => {
+      expect(() => adapter.translateInvocation(null)).toThrow('Invalid OpenAI function call')
+      expect(() => adapter.translateInvocation(undefined)).toThrow('Invalid OpenAI function call')
+      expect(() => adapter.translateInvocation('string')).toThrow('Invalid OpenAI function call')
+    })
+
+    it('throws error for missing name field', () => {
+      expect(() => adapter.translateInvocation({})).toThrow('missing or invalid "name" field')
+      expect(() => adapter.translateInvocation({ arguments: '{}' })).toThrow('missing or invalid "name" field')
+    })
+
+    it('throws error for invalid name field', () => {
+      expect(() => adapter.translateInvocation({ name: 123 })).toThrow('missing or invalid "name" field')
+      expect(() => adapter.translateInvocation({ name: null })).toThrow('missing or invalid "name" field')
+    })
+
+    it('throws error for invalid JSON in arguments string', () => {
+      const openaiCall = {
+        name: 'test_tool',
+        arguments: 'not valid json{',
+      }
+
+      expect(() => adapter.translateInvocation(openaiCall)).toThrow('arguments field is not valid JSON')
+    })
+
+    it('handles complex nested arguments', () => {
+      const openaiCall = {
+        name: 'complex_tool',
+        arguments: '{"config":{"name":"test","settings":{"enabled":true,"value":42}},"tags":["a","b"]}',
+      }
+
+      const result = adapter.translateInvocation(openaiCall)
+
+      expect(result).toEqual({
+        name: 'complex_tool',
+        arguments: {
+          config: {
+            name: 'test',
+            settings: {
+              enabled: true,
+              value: 42,
+            },
+          },
+          tags: ['a', 'b'],
+        },
+      })
+    })
+  })
+
+  describe('formatResult', () => {
+    it('returns result as-is for simple objects', () => {
+      const mcpResult = { success: true, data: 'test' }
+      const result = adapter.formatResult(mcpResult)
+      expect(result).toEqual({ success: true, data: 'test' })
+    })
+
+    it('returns result as-is for arrays', () => {
+      const mcpResult = [1, 2, 3, 4, 5]
+      const result = adapter.formatResult(mcpResult)
+      expect(result).toEqual([1, 2, 3, 4, 5])
+    })
+
+    it('returns result as-is for nested objects', () => {
+      const mcpResult = {
+        nodes: [
+          { id: '1', content: 'test1' },
+          { id: '2', content: 'test2' },
+        ],
+        count: 2,
+      }
+      const result = adapter.formatResult(mcpResult)
+      expect(result).toEqual(mcpResult)
+    })
+
+    it('returns result as-is for primitives', () => {
+      expect(adapter.formatResult('string')).toBe('string')
+      expect(adapter.formatResult(123)).toBe(123)
+      expect(adapter.formatResult(true)).toBe(true)
+      expect(adapter.formatResult(null)).toBe(null)
+    })
+  })
+
+  describe('provider name', () => {
+    it('has correct provider name', () => {
+      expect(adapter.name).toBe('openai')
+    })
+  })
+})

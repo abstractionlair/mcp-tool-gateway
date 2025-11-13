@@ -8,11 +8,12 @@ Connects to MCP servers via the official JS client over stdio and exposes HTTP e
 
 - **Provider Adapters**: Translate MCP tool schemas to provider-specific formats
   - ✅ Gemini (function_declarations)
-  - 🔜 OpenAI (function format)
+  - ✅ OpenAI (function format)
   - 🔜 xAI (tool format)
 
 - **HTTP API Endpoints**:
   - GET `/tools/gemini?server=...` → Tools in Gemini function_declarations format
+  - GET `/tools/openai?server=...` → Tools in OpenAI tools format
   - POST `/execute` → Execute tools via provider-specific format
   - GET `/tools?server=...` → Raw MCP tool schemas
   - POST `/call_tool` → Execute MCP tools (generic format)
@@ -26,7 +27,8 @@ Connects to MCP servers via the official JS client over stdio and exposes HTTP e
 ## Status
 
 **Phase 0 (Foundation)**: ✅ Complete - Basic MCP connection and tool execution working
-**Phase 1 (Provider Adapters)**: 🚧 In Progress - Gemini adapter complete
+**Phase 1 (Provider Adapters)**: ✅ Complete - Gemini and OpenAI adapters complete
+**Phase 2 (Multi-Provider Support)**: 🚧 In Progress - OpenAI adapter complete, xAI next
 
 ## Using with Gemini
 
@@ -112,6 +114,104 @@ $ curl 'http://localhost:8787/tools/gemini?server=default'
 
 See [docs/PLAN.md](docs/PLAN.md) for the full usage pattern with function calling, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a system overview.
 
+## Using with OpenAI
+
+The gateway translates MCP tool schemas to OpenAI's `tools` format, allowing you to use any MCP server with OpenAI models (GPT-4, GPT-3.5, etc.).
+
+### Quick Example
+
+```python
+import openai
+import requests
+
+gateway_url = "http://localhost:8787"
+
+# 1. Get tools in OpenAI format from the gateway
+response = requests.get(f"{gateway_url}/tools/openai?server=default")
+tools = response.json()["tools"]
+
+# 2. Create OpenAI client
+client = openai.OpenAI(api_key="your_api_key")
+
+# 3. Send a message with available tools
+messages = [{"role": "user", "content": "What is 15 plus 27?"}]
+
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=messages,
+    tools=tools,
+    tool_choice="auto"
+)
+
+# 4. Check if OpenAI wants to call a function
+message = response.choices[0].message
+if message.tool_calls:
+    for tool_call in message.tool_calls:
+        # 5. Execute via gateway
+        result = requests.post(f"{gateway_url}/execute", json={
+            "provider": "openai",
+            "call": {
+                "name": tool_call.function.name,
+                "arguments": tool_call.function.arguments  # JSON string
+            },
+            "server": "default"
+        }).json()["result"]
+
+        # 6. Add tool response to conversation
+        messages.append(message)
+        messages.append({
+            "role": "tool",
+            "tool_call_id": tool_call.id,
+            "content": str(result)
+        })
+
+    # 7. Get final response
+    final_response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages
+    )
+
+    print(final_response.choices[0].message.content)
+```
+
+### How It Works
+
+1. **Tool Discovery**: `GET /tools/openai` returns tools in OpenAI's expected format
+2. **Conversation**: Send messages to OpenAI, which may trigger tool calls
+3. **Tool Execution**: When OpenAI calls a tool, use `POST /execute` with provider-specific format
+4. **Response Loop**: Send execution results back to OpenAI to complete the request
+
+Example of the response format:
+
+```bash
+$ curl 'http://localhost:8787/tools/openai?server=default'
+{
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "add",
+        "description": "Add two numbers",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "type": "number",
+              "description": "First number"
+            },
+            "b": {
+              "type": "number",
+              "description": "Second number"
+            }
+          },
+          "required": ["a", "b"]
+        }
+      }
+    }
+  ]
+}
+```
+
 ## Local Development
 
 1) Configure a target MCP server (stdio)
@@ -144,6 +244,9 @@ curl 'http://localhost:8787/tools?server=default'
 # Get tools in Gemini format
 curl 'http://localhost:8787/tools/gemini?server=default'
 
+# Get tools in OpenAI format
+curl 'http://localhost:8787/tools/openai?server=default'
+
 # Execute a tool (generic MCP format)
 curl -X POST 'http://localhost:8787/call_tool' \
   -H 'Content-Type: application/json' \
@@ -153,6 +256,11 @@ curl -X POST 'http://localhost:8787/call_tool' \
 curl -X POST 'http://localhost:8787/execute' \
   -H 'Content-Type: application/json' \
   -d '{"provider":"gemini","call":{"name":"add","args":{"a":1,"b":2}},"server":"default"}'
+
+# Execute a tool (provider-specific format - OpenAI)
+curl -X POST 'http://localhost:8787/execute' \
+  -H 'Content-Type: application/json' \
+  -d '{"provider":"openai","call":{"name":"add","arguments":"{\"a\":1,\"b\":2}"},"server":"default"}'
 ```
 
 Notes:
@@ -168,18 +276,27 @@ The project includes a comprehensive test suite with unit, integration, and end-
 
 These tests validate the gateway's internal logic without making any external API calls. The test suite includes:
 
-**Unit Tests (22 tests in `gemini-adapter.test.ts`)**:
-- Schema translation: MCP tool schemas → Gemini `function_declarations` format
-- Parameter handling: nested objects, arrays, enums, required fields
-- Sanitization: removal of unsupported fields (`default`, `oneOf`, `maximum`)
-- Invocation translation: Gemini function calls → MCP format with validation
-- Edge cases: missing fields, invalid inputs, empty schemas
+**Unit Tests**:
+- Gemini adapter (21 tests in `gemini-adapter.test.ts`):
+  - Schema translation: MCP tool schemas → Gemini `function_declarations` format
+  - Parameter handling: nested objects, arrays, enums, required fields
+  - Sanitization: removal of unsupported fields (`default`, `oneOf`, `maximum`)
+  - Invocation translation: Gemini function calls → MCP format with validation
+  - Edge cases: missing fields, invalid inputs, empty schemas
 
-**Integration Tests (5 tests in `gateway.test.ts`)**:
-- HTTP endpoint functionality: `/health`, `/tools`, `/tools/gemini`, `/execute`
-- Provider adapter integration with live MCP connections
+- OpenAI adapter (30 tests in `openai-adapter.test.ts`):
+  - Schema translation: MCP tool schemas → OpenAI `tools` format
+  - Parameter handling: nested objects, arrays, enums, required fields, constraints
+  - Support for additional JSON Schema fields (`default`, `minimum`, `maximum`, `minLength`, `maxLength`, `pattern`, `additionalProperties`)
+  - Invocation translation: OpenAI function calls (JSON string arguments) → MCP format
+  - Edge cases: invalid JSON arguments, missing fields, empty schemas
+
+**Integration Tests (13 tests in `gateway.test.ts`)**:
+- HTTP endpoint functionality: `/health`, `/tools`, `/tools/gemini`, `/tools/openai`, `/execute`
+- Provider adapter integration with live MCP connections (Gemini and OpenAI)
 - Request validation and error handling
 - Multi-step workflows: ontology creation → node creation → queries
+- OpenAI-specific: JSON string and object argument handling
 
 Integration prerequisites:
 
@@ -242,6 +359,26 @@ npm run test:e2e
 **Security note:** Never commit API keys. The `.env` file is gitignored for local development.
 
 If `GEMINI_API_KEY` is not set, the Gemini E2E tests are automatically skipped.
+
+#### With OpenAI (API-based)
+
+This test validates the workflow with real API calls to the OpenAI API.
+
+**Quick start:**
+
+```bash
+cd node/service
+
+# Set your OpenAI API key (get one at https://platform.openai.com/api-keys)
+export OPENAI_API_KEY="your_api_key_here"
+
+# Run OpenAI E2E tests
+npm test -- openai-e2e.test.ts
+```
+
+**Security note:** Never commit API keys. The `.env` file is gitignored for local development.
+
+If `OPENAI_API_KEY` is not set, the OpenAI E2E tests are automatically skipped.
 
 #### With HTTP Transport
 
