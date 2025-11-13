@@ -4,7 +4,7 @@
 
 [NOTE: I think xAI now does have direct MCP support.]
 
-Connects to MCP servers via the official JS client over stdio and exposes HTTP endpoints for tool discovery, execution, and logging.
+Connects to MCP servers via the official JS client over stdio or HTTP and exposes HTTP endpoints for tool discovery, execution, and logging.
 
 ## Features
 
