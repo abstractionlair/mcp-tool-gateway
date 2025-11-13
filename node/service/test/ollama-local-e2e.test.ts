@@ -11,8 +11,8 @@
  * 7. Ollama generates final response
  *
  * Requirements:
- * - Ollama must be installed and running locally
- * - llama3.2:3b model must be pulled (or any other model that supports function calling)
+ * - Ollama must be installed and running locally (override host with OLLAMA_HOST)
+ * - Default model `llama3.2:3b` will be pulled automatically if missing (override with OLLAMA_E2E_MODEL)
  *
  * To run:
  * npm test -- ollama-local-e2e.test.ts
@@ -22,7 +22,80 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import request from 'supertest'
 import { app } from '../src/server.js'
 import { Ollama } from 'ollama'
+import type { ListResponse, ProgressResponse } from 'ollama'
 import path from 'node:path'
+
+const LOG_PREFIX = '[Ollama Local E2E]'
+const OLLAMA_HOST = process.env.OLLAMA_HOST ?? 'http://127.0.0.1:11434'
+const OLLAMA_E2E_MODEL =
+  process.env.OLLAMA_E2E_MODEL ?? process.env.OLLAMA_TEST_MODEL ?? 'llama3.2:3b'
+
+const isModelInstalled = async (ollama: Ollama, model: string): Promise<boolean> => {
+  const listResponse = await listModels(ollama)
+  return (
+    listResponse.models?.some(
+      (entry) => entry.name === model || entry.model === model
+    ) ?? false
+  )
+}
+
+const listModels = async (ollama: Ollama): Promise<ListResponse> => {
+  try {
+    return await ollama.list()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `${LOG_PREFIX} Unable to reach Ollama at ${OLLAMA_HOST}. Ensure \`ollama serve\` is running. Original error: ${message}`
+    )
+  }
+}
+
+const ensureModelAvailable = async (ollama: Ollama, model: string): Promise<void> => {
+  if (await isModelInstalled(ollama, model)) {
+    return
+  }
+
+  console.log(
+    `${LOG_PREFIX} Model "${model}" not found locally. Pulling from the Ollama registry...`
+  )
+  console.log(`${LOG_PREFIX} This step can take a few minutes on first run.`)
+
+  try {
+    const pullStream = await ollama.pull({ model, stream: true })
+    for await (const progress of pullStream) {
+      logPullProgress(progress)
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `${LOG_PREFIX} Failed to pull model "${model}". See Ollama logs for details. Original error: ${message}`
+    )
+  }
+
+  if (!(await isModelInstalled(ollama, model))) {
+    throw new Error(
+      `${LOG_PREFIX} Model "${model}" is still unavailable after pulling. Check your Ollama configuration.`
+    )
+  }
+}
+
+const logPullProgress = (progress: ProgressResponse): void => {
+  if (!progress?.status) {
+    return
+  }
+
+  const { completed, total } = progress
+  const percent =
+    typeof completed === 'number' &&
+    typeof total === 'number' &&
+    total > 0
+      ? Math.round((completed / total) * 100)
+      : null
+  const progressSuffix =
+    percent !== null ? ` (${percent}%)` : ''
+
+  console.log(`${LOG_PREFIX} ${progress.status}${progressSuffix}`)
+}
 
 describe('Ollama Local E2E Integration', () => {
   const testServerPath = path.join(
@@ -30,7 +103,14 @@ describe('Ollama Local E2E Integration', () => {
     'test/fixtures/dist/simple-test-server.js'
   )
 
-  let ollama: Ollama
+  let ollama: Ollama | null = null
+
+  const getOllamaClient = (): Ollama => {
+    if (!ollama) {
+      throw new Error('Ollama client not initialized')
+    }
+    return ollama
+  }
 
   beforeAll(async () => {
     // Verify test server exists
@@ -51,10 +131,18 @@ describe('Ollama Local E2E Integration', () => {
     fs2.mkdirSync(process.env.GTD_GRAPH_BASE_PATH, { recursive: true })
 
     // Initialize Ollama
-    ollama = new Ollama({ host: 'http://127.0.0.1:11434' })
+    const client = new Ollama({ host: OLLAMA_HOST })
+    await ensureModelAvailable(client, OLLAMA_E2E_MODEL)
+    ollama = client
+  }, 600000)
+
+  afterAll(() => {
+    ollama?.abort()
   })
 
   it('completes full workflow: tool discovery → Ollama call → execution → response', async () => {
+    const client = getOllamaClient()
+
     // Step 1: Get tools in Gemini format
     const toolsResponse = await request(app)
       .get('/tools/gemini')
@@ -88,8 +176,8 @@ describe('Ollama Local E2E Integration', () => {
 
     const mathPrompt = 'What is 15 plus 27? Use the add tool to calculate it. You must call the add function with arguments a=15 and b=27.'
 
-    let mathResponse = await ollama.chat({
-      model: 'llama3.2:3b',
+    let mathResponse = await client.chat({
+      model: OLLAMA_E2E_MODEL,
       messages: [
         {
           role: 'user',
@@ -149,8 +237,8 @@ describe('Ollama Local E2E Integration', () => {
     expect(parsedResult).toHaveProperty('result', 42)
 
     // Step 5: Send result back to Ollama
-    mathResponse = await ollama.chat({
-      model: 'llama3.2:3b',
+    mathResponse = await client.chat({
+      model: OLLAMA_E2E_MODEL,
       messages: [
         {
           role: 'user',
@@ -191,6 +279,8 @@ describe('Ollama Local E2E Integration', () => {
   }, 120000) // 2 minute timeout for local processing
 
   it('handles weather tool with string parameters', async () => {
+    const client = getOllamaClient()
+
     // Get tools
     const toolsResponse = await request(app)
       .get('/tools/gemini')
@@ -210,8 +300,8 @@ describe('Ollama Local E2E Integration', () => {
 
     const prompt = "What's the weather in San Francisco? Use the get_weather tool with location 'San Francisco'."
 
-    let response = await ollama.chat({
-      model: 'llama3.2:3b',
+    let response = await client.chat({
+      model: OLLAMA_E2E_MODEL,
       messages: [
         {
           role: 'user',
@@ -268,8 +358,8 @@ describe('Ollama Local E2E Integration', () => {
     expect(parsedResult).toHaveProperty('conditions')
 
     // Send result back
-    response = await ollama.chat({
-      model: 'llama3.2:3b',
+    response = await client.chat({
+      model: OLLAMA_E2E_MODEL,
       messages: [
         {
           role: 'user',
