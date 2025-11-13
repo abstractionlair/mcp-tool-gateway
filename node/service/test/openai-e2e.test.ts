@@ -12,7 +12,7 @@
  *
  * Requirements:
  * - OPENAI_API_KEY environment variable must be set
- * - Uses gpt-4o-mini for cost efficiency
+ * - Uses gpt-5-mini for cost efficiency
  *
  * To run:
  * OPENAI_API_KEY=your_key npm test -- openai-e2e.test.ts
@@ -106,7 +106,7 @@ describeOrSkip('OpenAI E2E Integration', () => {
     ]
 
     let mathResponse = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5-mini',
       messages: mathMessages,
       tools: tools,
       tool_choice: 'auto',
@@ -164,7 +164,7 @@ describeOrSkip('OpenAI E2E Integration', () => {
     })
 
     const finalResponse = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5-mini',
       messages: mathMessages,
     })
 
@@ -201,7 +201,7 @@ describeOrSkip('OpenAI E2E Integration', () => {
       console.log(`\n--- Iteration ${iterationCount} ---`)
 
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-5-mini',
         messages: messages,
         tools: tools,
         tool_choice: 'auto',

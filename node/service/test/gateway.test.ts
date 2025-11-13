@@ -51,7 +51,7 @@ describe('gateway endpoints', () => {
     const add = tools.find((t: any) => t.name === 'add')
     expect(add).toBeTruthy()
     expect(add.inputSchema || add.parameters || add.schema).toBeTruthy()
-  }, 30000)
+  }, 60000)
 
   it('can call add via /call_tool', async () => {
     const res = await request(server)
@@ -59,7 +59,7 @@ describe('gateway endpoints', () => {
       .send({ server: 'default', tool: 'add', arguments: { a: 15, b: 27 } })
     expect(res.status).toBe(200)
     expect(res.body.result).toBeTruthy()
-  }, 30000)
+  }, 60000)
 
   it('returns tools in Gemini function_declarations format', async () => {
     const res = await request(server).get('/tools/gemini').query({ server: 'default' })

@@ -30,6 +30,51 @@ Connects to MCP servers via the official JS client over stdio and exposes HTTP e
 **Phase 1 (Provider Adapters)**: ✅ Complete - Gemini and OpenAI adapters complete
 **Phase 2 (Multi-Provider Support)**: 🚧 In Progress - OpenAI adapter complete, xAI next
 
+## Test Quickstart
+
+Quick steps to run tests from `node/service`.
+
+Setup (first time):
+
+```
+cd node/service
+npm ci
+```
+
+Common:
+
+```
+# All tests (E2E auto-skip if no keys)
+npm test
+
+# Unit + integration only (no E2E)
+npm run test:unit
+```
+
+E2E options:
+
+```
+# Gemini E2E (uses gemini-2.5-flash)
+export GEMINI_API_KEY=your_key
+npm test -- gemini-e2e.test.ts
+
+# OpenAI E2E (uses gpt-4o-mini)
+export OPENAI_API_KEY=your_key
+npm test -- openai-e2e.test.ts
+
+# HTTP transport E2E (Gemini + HTTP/SSE MCP server)
+export GEMINI_API_KEY=your_key
+npm test -- gemini-http-e2e.test.ts
+
+# Local E2E with Ollama (no API keys)
+# Ensure Ollama is installed; test may auto-start `ollama serve` locally
+npm test -- ollama-local-e2e.test.ts
+```
+
+Tips:
+- Tests auto-read API keys from a `.env` at the repo root if present.
+- `npm test` builds the test MCP server fixture automatically.
+
 ## Using with Gemini
 
 The gateway translates MCP tool schemas to Gemini's `function_declarations` format, allowing you to use any MCP server with Gemini models.

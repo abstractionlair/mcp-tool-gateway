@@ -7,6 +7,19 @@ The test suite includes three types of E2E tests:
 2.  **API-based E2E Tests with Google Gemini**: Validates the workflow with a real AI provider, making live API calls. This is useful for ensuring compatibility with the specific provider.
 3.  **HTTP Transport E2E Tests**: Validates the complete workflow using HTTP/SSE transport instead of stdio, testing remote server connection patterns.
 
+## Setup (important)
+
+Before running any tests for the first time:
+
+```bash
+cd node/service
+npm ci  # install dev deps (vitest, supertest, provider SDKs, etc.)
+```
+
+Notes:
+- Provider E2E tests use SDKs in `devDependencies` (e.g., `openai`, `@google/generative-ai`). If you skip installing, you may see errors like: "Failed to load url openai (Does the file exist?)".
+- Tests attempt to auto-load API keys from a `.env` at the repository root (../../.env). You can also set env vars directly.
+
 ## Local E2E Testing with Ollama
 
 This test validates the complete workflow using a local Ollama LLM, providing a way to test the gateway's logic without external API calls or network dependency.
@@ -137,14 +150,13 @@ The key will only exist for the current terminal session and won't be stored any
 
 ### Method 2: Using a .env File
 
+Tests will auto-read a `.env` at the repository root (../../.env) if present.
+
 ```bash
+# At repo root
+echo "GEMINI_API_KEY=your_api_key_here" >> .env
+
 cd node/service
-
-# Create .env file (already in .gitignore)
-echo "GEMINI_API_KEY=your_api_key_here" > .env
-
-# Load and run tests (if using dotenv or similar)
-# Note: Current setup uses direct env vars, may need to add dotenv support
 npm test -- gemini-e2e.test.ts
 ```
 
@@ -272,6 +284,10 @@ jobs:
 - **Cause**: Network issues or slow API responses
 - **Solution**: Tests have 30-60s timeouts; check network connection
 
+### "Failed to load url openai (Does the file exist?)"
+- **Cause**: Node dependencies not installed in `node/service`
+- **Solution**: Run `cd node/service && npm ci` (or `npm install`) to install dev dependencies
+
 ## HTTP Transport E2E Testing
 
 The gateway supports both stdio and HTTP/SSE transports for connecting to MCP servers. The HTTP transport E2E test validates the complete workflow using a remote MCP server connection.
@@ -317,14 +333,48 @@ npm test -- gemini-http-e2e.test.ts
 
 For detailed HTTP transport configuration and usage, see [HTTP_TRANSPORT.md](./HTTP_TRANSPORT.md).
 
+## API-based E2E Testing with OpenAI
+
+This test validates the workflow with real API calls to the OpenAI API using Chat Completions tool calling.
+
+### Prerequisites
+
+1. Build the Test Server (if not running `npm test`, which builds automatically):
+   ```bash
+   cd node/service/test/fixtures
+   npx tsc -p tsconfig.json
+   ```
+
+2. Get an OpenAI API key from https://platform.openai.com/api-keys
+   - Recommended model: `gpt-4o-mini` (fast, inexpensive)
+
+### Running the Test
+
+Method 1: direct env var
+```bash
+cd node/service
+export OPENAI_API_KEY="your_key"
+npm test -- openai-e2e.test.ts
+```
+
+Method 2: .env file at repository root
+```bash
+# ../../.env (repo root)
+OPENAI_API_KEY=your_key
+
+cd node/service
+npm test -- openai-e2e.test.ts
+```
+
+Behavior:
+- If `OPENAI_API_KEY` is not set, the test is auto-skipped with a helpful message.
+- Typical runtime: 30–90 seconds; cost is minimal for a single run.
+
 ## Adding More E2E Tests
 
-To add tests for other providers (OpenAI, xAI):
+To add tests for other providers (xAI, etc.):
 
-1. Install the provider's SDK:
-   ```bash
-   npm install --save-dev openai  # or other SDK
-   ```
+1. Install the provider's SDK if not already present in `devDependencies`.
 
 2. Create a new test file (e.g., `openai-e2e.test.ts`)
 
