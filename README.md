@@ -2,6 +2,8 @@
 
 **MCP-to-Provider Adapter**: Enable MCP servers to work with AI providers that don't have native MCP support (Gemini, OpenAI, xAI, etc.) by translating MCP tool schemas and execution calls to provider-specific formats.
 
+[NOTE: I think xAI now does have direct MCP support.]
+
 Connects to MCP servers via the official JS client over stdio and exposes HTTP endpoints for tool discovery, execution, and logging.
 
 ## Features
