@@ -1,17 +1,19 @@
 import './env.js'
 import express from 'express'
 import { McpClientManager, defaultBootstrap } from './mcpManager.js'
-import { GeminiAdapter, MCPTool, ProviderAdapter } from './adapters/index.js'
+import { GeminiAdapter, OpenAIAdapter, MCPTool, ProviderAdapter } from './adapters/index.js'
 
 const app = express()
 app.use(express.json({ limit: '1mb' }))
 
 const manager = new McpClientManager(defaultBootstrap)
 const geminiAdapter = new GeminiAdapter()
+const openaiAdapter = new OpenAIAdapter()
 
 // Registry of provider adapters
 const adapters = new Map<string, ProviderAdapter>([
   ['gemini', geminiAdapter],
+  ['openai', openaiAdapter],
 ])
 
 function parseTool(server: string | undefined, tool: string): { server: string, tool: string } {
@@ -50,6 +52,24 @@ app.get('/tools/gemini', async (req, res) => {
     // Translate to Gemini format
     const geminiTools = geminiAdapter.translateAllTools(toolsArray as MCPTool[])
     res.json(geminiTools)
+  } catch (error: any) {
+    res.status(500).json({ error: String(error?.message ?? error) })
+  }
+})
+
+app.get('/tools/openai', async (req, res) => {
+  try {
+    const server = (req.query.server as string | undefined) ?? 'default'
+    const toolsResponse = await manager.listTools(server)
+
+    // Handle different SDK response formats: { tools: [...] } or [...]
+    const toolsArray = Array.isArray((toolsResponse as any)?.tools)
+      ? (toolsResponse as any).tools
+      : (Array.isArray(toolsResponse) ? toolsResponse : [])
+
+    // Translate to OpenAI format
+    const openaiTools = openaiAdapter.translateAllTools(toolsArray as MCPTool[])
+    res.json(openaiTools)
   } catch (error: any) {
     res.status(500).json({ error: String(error?.message ?? error) })
   }

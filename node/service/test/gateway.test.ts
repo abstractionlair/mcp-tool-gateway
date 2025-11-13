@@ -152,4 +152,73 @@ describe('gateway endpoints', () => {
     }
     expect(parsed?.value).toBe('test123')
   })
+
+  it('returns tools in OpenAI tools format', async () => {
+    const res = await request(server).get('/tools/openai').query({ server: 'default' })
+    expect(res.status).toBe(200)
+    expect(res.body).toHaveProperty('tools')
+    expect(Array.isArray(res.body.tools)).toBe(true)
+
+    // Verify structure of OpenAI tools
+    const tools = res.body.tools
+    expect(tools.length).toBeGreaterThan(0)
+
+    const addTool = tools.find((t: any) => t.function?.name === 'add')
+    expect(addTool).toBeTruthy()
+    expect(addTool.type).toBe('function')
+    expect(addTool).toHaveProperty('function')
+    expect(addTool.function).toHaveProperty('name')
+    expect(addTool.function).toHaveProperty('description')
+    expect(addTool.function).toHaveProperty('parameters')
+    expect(addTool.function.parameters).toHaveProperty('type', 'object')
+    expect(addTool.function.parameters).toHaveProperty('properties')
+
+    const weatherTool = tools.find((t: any) => t.function?.name === 'get_weather')
+    expect(weatherTool).toBeTruthy()
+  })
+
+  it('can execute tools via /execute with OpenAI format (JSON string arguments)', async () => {
+    const res = await request(server)
+      .post('/execute')
+      .send({
+        provider: 'openai',
+        call: {
+          name: 'add',
+          arguments: '{"a":15,"b":27}',
+        },
+        server: 'default',
+      })
+    expect(res.status).toBe(200)
+    expect(res.body).toHaveProperty('result')
+    expect(res.body.result).toBeTruthy()
+  })
+
+  it('can execute tools via /execute with OpenAI format (object arguments)', async () => {
+    const res = await request(server)
+      .post('/execute')
+      .send({
+        provider: 'openai',
+        call: {
+          name: 'multiply',
+          arguments: { a: 6, b: 7 },
+        },
+        server: 'default',
+      })
+    expect(res.status).toBe(200)
+    expect(res.body).toHaveProperty('result')
+    expect(res.body.result).toBeTruthy()
+  })
+
+  it('returns OpenAI in available providers list', async () => {
+    const res = await request(server)
+      .post('/execute')
+      .send({
+        provider: 'unknown-provider',
+        call: { name: 'test', arguments: '{}' },
+      })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toContain('Unknown provider')
+    expect(res.body.availableProviders).toContain('gemini')
+    expect(res.body.availableProviders).toContain('openai')
+  })
 })
