@@ -28,7 +28,7 @@ import path from 'node:path'
 const LOG_PREFIX = '[Ollama Local E2E]'
 const OLLAMA_HOST = process.env.OLLAMA_HOST ?? 'http://127.0.0.1:11434'
 const OLLAMA_E2E_MODEL =
-  process.env.OLLAMA_E2E_MODEL ?? process.env.OLLAMA_TEST_MODEL ?? 'llama3.2:3b'
+  process.env.OLLAMA_E2E_MODEL ?? process.env.OLLAMA_TEST_MODEL ?? 'qwen3:8b'
 
 const isModelInstalled = async (ollama: Ollama, model: string): Promise<boolean> => {
   const listResponse = await listModels(ollama)
