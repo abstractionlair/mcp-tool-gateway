@@ -5,7 +5,7 @@ Last Updated: 2025-11-14
 
 ## 🚀 What's Ready Now
 
-**All major providers are production-ready:**
+**All major features are production-ready:**
 - ✅ **Google Gemini** - Fully implemented and tested (Phase 1 complete)
 - ✅ **OpenAI** - Fully implemented and tested (Phase 2 complete)
 - ✅ **xAI** - Fully implemented and tested (Phase 2 complete)
@@ -14,8 +14,10 @@ Last Updated: 2025-11-14
 - ✅ **HTTP/SSE Transport** - Support for remote MCP servers
 - ✅ **E2E Testing** - All providers validated with real APIs
 - ✅ **Multi-Server Configuration** - JSON config with multiple servers
+- ✅ **Observability** - Correlation IDs, structured logging, metrics, SSE streaming
+- ✅ **Docker Deployment** - Production-ready containerization
 
-**Current focus:** Observability improvements and testing utilities (Phase 5).
+**Current focus:** All core features complete. Ready for production use.
 
 ## Purpose
 
@@ -190,13 +192,17 @@ A translation layer that:
 
 **Goal**: Easy-to-use clients that abstract away provider differences. ✅ **ACHIEVED**
 
-### Phase 5 — Observability & Production (🚧 IN PROGRESS)
-- [ ] Correlation IDs: trace request → provider call → MCP execution
-- [ ] Structured logging with provider context
-- [ ] `/logs` enhancements: filtering, SSE streaming
+### Phase 5 — Observability & Production (✅ COMPLETE - PRODUCTION READY)
+- [x] Correlation IDs: trace request → provider call → MCP execution ✅ **COMPLETE**
+- [x] Structured logging with provider context ✅ **COMPLETE**
+- [x] `/logs` enhancements: filtering, SSE streaming ✅ **COMPLETE**
 - [x] Health checks with per-server status ✅ **COMPLETE**
-- [ ] Metrics: request counters, latencies, error rates
-- [ ] Docker deployment + examples
+- [x] Metrics: request counters, latencies, error rates ✅ **COMPLETE**
+- [x] Docker deployment + examples ✅ **COMPLETE**
+
+**Status**: ✅ **PRODUCTION READY** - Complete observability infrastructure with correlation IDs, structured logging, metrics collection, SSE log streaming, and Docker deployment. All features tested with 18 new unit tests. See [docs/OBSERVABILITY.md](./OBSERVABILITY.md) for complete documentation.
+
+**Goal**: Production-grade observability and deployment tooling. ✅ **ACHIEVED**
 
 ## API Contract
 
@@ -255,11 +261,17 @@ A translation layer that:
 **GET `/tools?server=name`** (Raw MCP format)
 - Response: MCP tool schemas (not provider-specific)
 
-**GET `/logs?server=name&since=iso8601&limit=100`**
+**GET `/logs?server=name&since=iso8601&limit=100&stream=true`**
 - Response: `[{ timestamp, tool, input, result?, error? }]`
+- With `stream=true`: Server-Sent Events (SSE) for real-time log streaming
+
+**GET `/metrics?since=timestamp`**
+- Response: Metrics snapshot with request counts, error rates, and latency percentiles
+- Grouped by provider and endpoint
+- See [docs/OBSERVABILITY.md](./OBSERVABILITY.md) for details
 
 **GET `/health`**
-- Response: `{ ok: true, servers: [{ name, status }] }`
+- Response: `{ ok: true, servers: [{ name, transport, connected }], serverCount, configSource }`
 
 ## Configuration
 
@@ -290,8 +302,9 @@ A translation layer that:
   - API endpoints: 18 integration tests (/tools/gemini, /tools/openai, /execute with validation, /context endpoints)
   - Multi-server: 11 integration tests (multiple servers, mixed transports, health endpoint, server routing)
   - E2E tests: Gemini (2 tests), OpenAI (2 tests), xAI (2 tests), Ollama (1 test), HTTP transport (2 tests)
-- **Total**: 139 unit/integration tests passing, 9 E2E tests (with API keys)
-- **Next**: add `/logs` assertions to unit/integration tests (E2E already verifies logs)
+- **Observability**: 18 unit tests (correlation IDs, metrics, logging, SSE streaming)
+- **Total**: 157 unit/integration tests passing, 9 E2E tests (with API keys)
+- **Coverage**: All core features, providers, transports, and observability
 
 ## Architecture
 

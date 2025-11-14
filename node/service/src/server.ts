@@ -1,11 +1,43 @@
 import './env.js'
-import express from 'express'
+import express, { Request, Response, NextFunction } from 'express'
 import { McpClientManager } from './mcpManager.js'
 import { ConfigLoader } from './config.js'
 import { GeminiAdapter, OpenAIAdapter, XAIAdapter, MCPTool, ProviderAdapter } from './adapters/index.js'
+import { correlationMiddleware, getCorrelationId, logger, metrics } from './observability/index.js'
 
 const app = express()
 app.use(express.json({ limit: '1mb' }))
+
+// Add correlation ID tracking
+app.use(correlationMiddleware)
+
+// Request timing and metrics middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const startTime = Date.now()
+
+  // Extract provider from request if present
+  let provider: string | undefined
+  if (req.path.includes('/gemini')) provider = 'gemini'
+  else if (req.path.includes('/openai')) provider = 'openai'
+  else if (req.path.includes('/xai')) provider = 'xai'
+  else if (req.body?.provider) provider = req.body.provider
+
+  res.on('finish', () => {
+    const duration = Date.now() - startTime
+    const success = res.statusCode < 400
+
+    // Record metrics
+    metrics.recordRequest(req.path, duration, success, provider)
+
+    // Log request
+    logger.logRequest(req.method, req.path, res.statusCode, duration, {
+      provider,
+      server: req.query.server as string | undefined,
+    })
+  })
+
+  next()
+})
 
 // Load configuration from file or environment variables
 // Using a function ensures config is loaded lazily on first server connection
@@ -149,40 +181,105 @@ app.get('/logs', (req, res) => {
     const server = (req.query.server as string | undefined) ?? 'default'
     const since = req.query.since as string | undefined
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 200
-    const entries = manager.readLogs(server, since, limit)
-    res.json(entries)
+    const stream = req.query.stream === 'true'
+
+    if (stream) {
+      // SSE streaming mode
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('Connection', 'keep-alive')
+      res.flushHeaders()
+
+      // Send initial logs
+      const entries = manager.readLogs(server, since, limit)
+      for (const entry of entries) {
+        res.write(`data: ${JSON.stringify(entry)}\n\n`)
+      }
+
+      // Keep connection alive and send heartbeats
+      const heartbeat = setInterval(() => {
+        res.write(`:heartbeat\n\n`)
+      }, 30000) // 30 second heartbeat
+
+      // Clean up on close
+      req.on('close', () => {
+        clearInterval(heartbeat)
+        logger.debug('SSE connection closed', { server })
+      })
+    } else {
+      // Regular JSON response
+      const entries = manager.readLogs(server, since, limit)
+      res.json(entries)
+    }
   } catch (error: any) {
+    logger.error('Failed to read logs', { error: String(error?.message ?? error) })
+    res.status(500).json({ error: String(error?.message ?? error) })
+  }
+})
+
+// Metrics endpoint
+app.get('/metrics', (req, res) => {
+  try {
+    const since = req.query.since ? parseInt(req.query.since as string, 10) : undefined
+    const snapshot = metrics.getSnapshot(since)
+    res.json(snapshot)
+  } catch (error: any) {
+    logger.error('Failed to get metrics', { error: String(error?.message ?? error) })
     res.status(500).json({ error: String(error?.message ?? error) })
   }
 })
 
 app.post('/call_tool', async (req, res) => {
+  const startTime = Date.now()
   try {
     const { server, tool, arguments: args } = req.body ?? {}
     const parsed = parseTool(server, tool)
+
+    logger.info('Calling tool', {
+      server: parsed.server,
+      tool: parsed.tool,
+    })
+
     const result = await manager.callTool(parsed.server, parsed.tool, args ?? {})
+    const duration = Date.now() - startTime
+
+    logger.logToolExecution(parsed.tool, parsed.server, duration, true)
     res.json({ result })
   } catch (error: any) {
+    const duration = Date.now() - startTime
+    const { server, tool } = req.body ?? {}
+
+    logger.error('Tool execution failed', {
+      server,
+      tool,
+      duration,
+      error: String(error?.message ?? error),
+    })
+
     res.status(500).json({ error: String(error?.message ?? error) })
   }
 })
 
 app.post('/execute', async (req, res) => {
+  const startTime = Date.now()
   try {
     const { provider, call, server } = req.body ?? {}
 
     // Validate request
     if (!provider || typeof provider !== 'string') {
+      logger.warn('Invalid execute request: missing provider')
       return res.status(400).json({ error: 'Missing or invalid "provider" field' })
     }
 
     if (!call || typeof call !== 'object') {
+      logger.warn('Invalid execute request: missing call', { provider })
       return res.status(400).json({ error: 'Missing or invalid "call" field' })
     }
 
     // Get adapter for provider
     const adapter = adapters.get(provider)
     if (!adapter) {
+      logger.warn('Unknown provider', { provider })
       return res.status(400).json({
         error: `Unknown provider: ${provider}`,
         availableProviders: Array.from(adapters.keys())
@@ -191,16 +288,35 @@ app.post('/execute', async (req, res) => {
 
     // Translate provider call to MCP format
     const mcpCall = adapter.translateInvocation(call)
+    const serverName = server ?? 'default'
+
+    logger.info('Executing tool via provider', {
+      provider,
+      server: serverName,
+      tool: mcpCall.name,
+    })
 
     // Execute via MCP
-    const serverName = server ?? 'default'
     const mcpResult = await manager.callTool(serverName, mcpCall.name, mcpCall.arguments)
+    const duration = Date.now() - startTime
 
     // Format result for provider
     const providerResult = adapter.formatResult(mcpResult)
 
+    logger.logToolExecution(mcpCall.name, serverName, duration, true, { provider })
     res.json({ result: providerResult })
   } catch (error: any) {
+    const duration = Date.now() - startTime
+    const { provider, server, call } = req.body ?? {}
+
+    logger.error('Execute failed', {
+      provider,
+      server,
+      tool: call?.name,
+      duration,
+      error: String(error?.message ?? error),
+    })
+
     res.status(500).json({ error: String(error?.message ?? error) })
   }
 })

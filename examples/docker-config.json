@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "example-http": {
+      "transport": "http",
+      "url": "http://your-mcp-server:8080/sse",
+      "logPath": "/app/logs/example-http.log"
+    }
+  }
+}
