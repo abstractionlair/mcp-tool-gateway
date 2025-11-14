@@ -1,0 +1,56 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Testing
+coverage
+.vitest
+
+# Build artifacts
+dist
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+docs
+
+# Logs
+logs
+*.log
+
+# Python
+python/__pycache__
+python/*.pyc
+python/.pytest_cache
+python/dist
+python/*.egg-info
+
+# TypeScript client
+ts/client/dist
+ts/client/node_modules
+
+# Test fixtures
+node/service/test
