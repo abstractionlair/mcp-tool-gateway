@@ -49,6 +49,47 @@ npm test -- ollama-local-e2e.test.ts
 
 The test will connect to your local Ollama instance, run the full tool-use workflow, and execute tool calls against the local test MCP server.
 
+### Python Client E2E Test with Ollama
+
+A Python version of the Ollama E2E test is available that validates the Python client library.
+
+**Prerequisites:**
+1. Install Python dependencies:
+   ```bash
+   cd python
+   pip install -e .
+   pip install ollama
+   ```
+
+2. Install and run Ollama (same as above)
+
+3. Start the gateway service:
+   ```bash
+   cd node/service
+   npm run dev
+   ```
+
+**Running the Python E2E Test:**
+
+```bash
+cd python
+python3 test_e2e_ollama.py
+```
+
+**Configuration:**
+- `OLLAMA_HOST`: Override default http://127.0.0.1:11434
+- `OLLAMA_E2E_MODEL`: Override default model (qwen3:8b)
+- `GATEWAY_URL`: Override default http://localhost:8787
+
+**What it tests:**
+- Python client `get_tools()` method with Gemini format
+- Ollama function calling integration
+- Python client `execute()` method for tool execution
+- Python client `logs()` method for log verification
+- Complete multi-step workflow with string and numeric parameters
+
+This test provides validation that the Python client library works correctly for real-world use cases with Ollama.
+
 ## API-based E2E Testing with Google Gemini
 
 This document describes how to run E2E integration tests that make real API calls to AI providers like Google Gemini.
