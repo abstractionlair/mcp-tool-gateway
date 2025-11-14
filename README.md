@@ -42,11 +42,19 @@ Use any MCP server with these providers today! See usage examples below.
   - ✅ stdio (local MCP servers)
   - ✅ HTTP/SSE (remote MCP servers)
 
+- **Multi-Server Configuration**:
+  - ✅ JSON configuration file support
+  - ✅ Connect to multiple MCP servers simultaneously
+  - ✅ Mix stdio and HTTP transports
+  - ✅ Per-server environment variables and logging
+  - ✅ Health monitoring for all configured servers
+
 ## Status
 
 All core functionality is complete and tested:
 - ✅ **Foundation** - MCP connection, tool execution, logging
 - ✅ **Provider Adapters** - Gemini, OpenAI, and xAI fully implemented
+- ✅ **Multi-Server Support** - JSON configuration with multiple servers
 - ✅ **E2E Testing** - Validated with real provider APIs
 - ✅ **Python Client** - Production-ready client library
 
@@ -436,11 +444,65 @@ logs = client.logs(
 )
 ```
 
+## Configuration
+
+The gateway supports multiple MCP servers through a JSON configuration file or environment variables (legacy single-server mode).
+
+### Quick Configuration Examples
+
+**JSON Config (Multiple Servers):**
+
+Create `mcp-gateway-config.json`:
+
+```json
+{
+  "servers": {
+    "filesystem": {
+      "transport": "stdio",
+      "command": "node",
+      "args": ["/path/to/mcp-server-filesystem/dist/index.js"],
+      "env": {
+        "BASE_PATH": "/home/user/data"
+      }
+    },
+    "weather": {
+      "transport": "http",
+      "url": "http://localhost:3001/sse"
+    }
+  }
+}
+```
+
+**Environment Variables (Single Server - Legacy):**
+
+```bash
+export MCP_SERVER_DIST=/path/to/mcp/server/dist/index.js
+export MCP_BASE_PATH=/data
+export MCP_LOG_PATH=/data/mcp-calls.log
+```
+
+This creates a single server named "default".
+
+**📖 For complete configuration documentation, see [docs/CONFIG.md](docs/CONFIG.md)**
+
+Topics covered:
+- JSON configuration schema and validation
+- stdio transport (local servers)
+- HTTP/SSE transport (remote servers)
+- Environment variables and logging
+- Migration guide from env vars
+- Multiple server examples
+- Troubleshooting
+
 ## Local Development
 
 1) Configure a target MCP server (stdio)
 
-Set environment variables so the gateway can spawn/connect:
+**Option A: JSON config file (recommended for multiple servers)**
+
+See [Configuration](#configuration) section above.
+
+**Option B: Environment variables (single server)**
 
 ```
 export MCP_SERVER_DIST=/absolute/path/to/your/mcp/server/dist/index.js

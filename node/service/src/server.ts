@@ -1,12 +1,21 @@
 import './env.js'
 import express from 'express'
-import { McpClientManager, defaultBootstrap } from './mcpManager.js'
+import { McpClientManager } from './mcpManager.js'
+import { ConfigLoader } from './config.js'
 import { GeminiAdapter, OpenAIAdapter, XAIAdapter, MCPTool, ProviderAdapter } from './adapters/index.js'
 
 const app = express()
 app.use(express.json({ limit: '1mb' }))
 
-const manager = new McpClientManager(defaultBootstrap)
+// Load configuration from file or environment variables
+// Using a function ensures config is loaded lazily on first server connection
+let configLoadedOnce = false
+const manager = new McpClientManager(() => {
+  if (!configLoadedOnce) {
+    configLoadedOnce = true
+  }
+  return ConfigLoader.load()
+})
 const geminiAdapter = new GeminiAdapter()
 const openaiAdapter = new OpenAIAdapter()
 const xaiAdapter = new XAIAdapter()
@@ -28,7 +37,13 @@ function parseTool(server: string | undefined, tool: string): { server: string, 
 }
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, servers: [] })
+  const servers = manager.getServerHealth()
+  res.json({
+    ok: true,
+    serverCount: manager.getServerCount(),
+    servers: servers,
+    configSource: ConfigLoader.hasConfigFile() ? 'file' : 'env'
+  })
 })
 
 app.get('/tools', async (req, res) => {

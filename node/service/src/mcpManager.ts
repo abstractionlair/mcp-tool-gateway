@@ -37,15 +37,30 @@ interface ServerHandle {
 
 export class McpClientManager {
   private servers = new Map<string, ServerHandle>()
+  private serverSpecs: ServerSpec[] = []
+  private specsLoaded = false
 
-  constructor(private readonly bootstrap: () => ServerSpec[]) {}
+  constructor(private readonly bootstrap: () => ServerSpec[]) {
+    // Defer loading until first access to support dynamic configuration in tests
+  }
+
+  private ensureSpecsLoaded(): void {
+    if (!this.specsLoaded) {
+      this.serverSpecs = this.bootstrap()
+      this.specsLoaded = true
+    }
+  }
 
   async ensure(serverName: string): Promise<ServerHandle> {
+    this.ensureSpecsLoaded()
     let handle = this.servers.get(serverName)
     if (handle) return handle
 
-    const spec = this.bootstrap().find(s => s.name === serverName)
-    if (!spec) throw new Error(`Unknown server: ${serverName}`)
+    const spec = this.serverSpecs.find(s => s.name === serverName)
+    if (!spec) {
+      const availableServers = this.serverSpecs.map(s => s.name).join(', ')
+      throw new Error(`Unknown server: ${serverName}. Available servers: ${availableServers || 'none'}`)
+    }
 
     const transportType = spec.transport ?? 'stdio'
     let transport: any
@@ -142,6 +157,34 @@ export class McpClientManager {
       return parsed.filter((e: any) => Date.parse(e?.timestamp ?? '') >= sinceTs)
     }
     return parsed
+  }
+
+  /**
+   * Get names of all configured servers.
+   */
+  getAvailableServers(): string[] {
+    this.ensureSpecsLoaded()
+    return this.serverSpecs.map(s => s.name)
+  }
+
+  /**
+   * Get health status for all configured servers.
+   */
+  getServerHealth(): Array<{ name: string; transport: string; connected: boolean }> {
+    this.ensureSpecsLoaded()
+    return this.serverSpecs.map(spec => ({
+      name: spec.name,
+      transport: spec.transport ?? 'stdio',
+      connected: this.servers.has(spec.name),
+    }))
+  }
+
+  /**
+   * Get count of configured servers.
+   */
+  getServerCount(): number {
+    this.ensureSpecsLoaded()
+    return this.serverSpecs.length
   }
 }
 

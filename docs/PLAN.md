@@ -12,8 +12,9 @@ Last Updated: 2025-11-14
 - ✅ **Python Client Library** - Type-safe client with provider support
 - ✅ **HTTP/SSE Transport** - Support for remote MCP servers
 - ✅ **E2E Testing** - All providers validated with real APIs
+- ✅ **Multi-Server Configuration** - JSON config with multiple servers
 
-**Current focus:** Expanding tooling, context generation, and developer experience improvements (Phases 3-5).
+**Current focus:** Context generation, TypeScript client, and observability improvements (Phases 3-5).
 
 ## Purpose
 
@@ -41,8 +42,8 @@ A translation layer that:
 - ✅ **Gemini support** - **PRODUCTION READY** (full implementation with E2E tests)
 - ✅ **OpenAI support** - **PRODUCTION READY** (full JSON Schema support)
 - ✅ **xAI support** - **PRODUCTION READY** (complete implementation)
-- 🚧 **Context generators** for inserting tool descriptions into prompts - **IN PROGRESS** (Phase 3)
-- 🚧 **Multi-server support** with clean configuration - **PLANNED** (Phase 3)
+- ✅ **Multi-server support** with clean configuration - **COMPLETE** (Phase 3)
+- 🚧 **Context generators** for inserting tool descriptions into prompts - **PLANNED** (Phase 3)
 
 ## Roadmap (Phases)
 
@@ -166,14 +167,16 @@ A translation layer that:
 - Supports full JSON Schema including fields not supported by Gemini (`default`, `minimum`, `maximum`, `minLength`, `maxLength`, `pattern`, `minItems`, `maxItems`, `additionalProperties`)
 - E2E tests validate multi-step workflows with state management
 
-### Phase 3 — Context Generation & Tooling
+### Phase 3 — Context Generation & Tooling (🚧 IN PROGRESS)
 - [ ] Context generators: format tool descriptions for prompt injection
 - [ ] `/tools/{provider}/context` endpoint (human-readable tool descriptions)
 - [ ] Schema optimization: concise vs. detailed modes
 - [ ] Tool filtering and grouping (by category, importance, etc.)
-- [ ] Multi-server config: JSON/env to register multiple MCP servers
+- [x] Multi-server config: JSON/env to register multiple MCP servers ✅ **COMPLETE**
 
-**Goal**: Rich tool metadata and flexible context generation for different use cases.
+**Status**: Multi-server configuration is production-ready. JSON config file support with validation, mixed transport types, per-server environment variables, and health monitoring. See [docs/CONFIG.md](./CONFIG.md) for details.
+
+**Goal**: Rich tool metadata and flexible context generation for different use cases. *(Multi-server achieved)*
 
 ### Phase 4 — Client Libraries & DX (🚧 IN PROGRESS)
 - [x] Python client with provider-aware methods ✅ **PRODUCTION READY**
@@ -186,11 +189,11 @@ A translation layer that:
 
 **Goal**: Easy-to-use clients that abstract away provider differences. *(Python client achieved)*
 
-### Phase 5 — Observability & Production
+### Phase 5 — Observability & Production (🚧 IN PROGRESS)
 - [ ] Correlation IDs: trace request → provider call → MCP execution
 - [ ] Structured logging with provider context
 - [ ] `/logs` enhancements: filtering, SSE streaming
-- [ ] Health checks with per-server status
+- [x] Health checks with per-server status ✅ **COMPLETE**
 - [ ] Metrics: request counters, latencies, error rates
 - [ ] Docker deployment + examples
 
@@ -243,11 +246,19 @@ A translation layer that:
 
 ## Configuration
 
-- Env (current, single server):
-  - MCP_SERVER_DIST: absolute path to MCP server dist entry (index.js)
-  - MCP_BASE_PATH: data path for server
-  - MCP_LOG_PATH: path for MCP_CALL_LOG
-- Next: multi‑server JSON config (path), override via env
+**Primary method (multi-server):**
+- JSON config file: `mcp-gateway-config.json` (or path via `MCP_CONFIG_PATH` env var)
+- Schema: `{ "servers": { "name": { transport, command, args, env, url, logPath } } }`
+- Supports multiple servers with mixed stdio/HTTP transports
+- See [docs/CONFIG.md](./CONFIG.md) for complete documentation
+
+**Legacy method (single server, backward compatible):**
+- Environment variables:
+  - `MCP_SERVER_DIST`: absolute path to MCP server dist entry (index.js)
+  - `MCP_BASE_PATH`: data path for server
+  - `MCP_LOG_PATH`: path for MCP_CALL_LOG
+- Creates a single server named "default"
+- Used only when no config file exists
 
 ## Testing
 
@@ -258,9 +269,11 @@ A translation layer that:
   - GeminiAdapter: 21 unit tests (schema translation, sanitization, execution, edge cases)
   - OpenAIAdapter: 30 unit tests (schema translation, sanitization, execution, edge cases, JSON string parsing)
   - XAIAdapter: 30 unit tests (schema translation, sanitization, execution, edge cases, JSON string parsing)
+  - ConfigLoader: 18 unit tests (JSON parsing, validation, env vars, transport types, error handling)
   - API endpoints: 13 integration tests (/tools/gemini, /tools/openai, /execute with validation)
+  - Multi-server: 11 integration tests (multiple servers, mixed transports, health endpoint, server routing)
   - E2E tests: Gemini (2 tests), OpenAI (2 tests), xAI (2 tests), Ollama (1 test), HTTP transport (2 tests)
-- **Total**: 94 unit/integration tests passing, 9 E2E tests (with API keys)
+- **Total**: 123 unit/integration tests passing, 9 E2E tests (with API keys)
 - **Next**: add `/logs` assertions to unit/integration tests (E2E already verifies logs)
 
 ## Architecture
