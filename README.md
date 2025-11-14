@@ -23,9 +23,9 @@ Connects to MCP servers via the official JS client over stdio or HTTP and expose
   - GET `/logs?server=...&since=...&limit=...` → Recent MCP execution logs
   - GET `/health` → Service health status
 
-- **Clients** (coming soon):
-  - Python: `mcp_tool_gateway`
-  - TypeScript: `@mcp-tool-gateway/client`
+- **Clients**:
+  - ✅ Python: `mcp_tool_gateway` (installed from `python/` directory)
+  - TypeScript: `@mcp-tool-gateway/client` (coming soon)
 
 ## Status
 
@@ -262,6 +262,161 @@ $ curl 'http://localhost:8787/tools/openai?server=default'
     }
   ]
 }
+```
+
+## Using the Python Client
+
+The Python client library provides a clean, typed interface to the gateway with automatic retries and error handling.
+
+### Installation
+
+```bash
+# From the repository root
+cd python
+pip install -e .
+```
+
+### Quick Example (Gemini)
+
+```python
+from mcp_tool_gateway import GatewayClient
+import google.generativeai as genai
+
+# Initialize client
+gateway = GatewayClient("http://localhost:8787")
+
+# Get tools in Gemini format
+tools = gateway.get_tools("gemini", server="default")
+
+# Create Gemini model with tools
+model = genai.GenerativeModel('gemini-1.5-pro', tools=tools['function_declarations'])
+chat = model.start_chat()
+
+# Send message
+response = chat.send_message("What tasks do I have?")
+
+# Handle function calls
+if response.candidates[0].content.parts[0].function_call:
+    fc = response.candidates[0].content.parts[0].function_call
+
+    # Execute via gateway (much cleaner than raw HTTP!)
+    result = gateway.execute("gemini", {
+        "name": fc.name,
+        "args": dict(fc.args)
+    }, server="default")
+
+    # Send result back to Gemini
+    response = chat.send_message({
+        "role": "function",
+        "parts": [{
+            "function_response": {
+                "name": fc.name,
+                "response": result
+            }
+        }]
+    })
+
+print(response.text)
+```
+
+### Quick Example (OpenAI)
+
+```python
+from mcp_tool_gateway import GatewayClient
+import openai
+
+# Initialize client with custom retry settings
+gateway = GatewayClient(
+    "http://localhost:8787",
+    timeout=30.0,
+    max_retries=5
+)
+
+# Get tools in OpenAI format
+tools = gateway.get_tools("openai", server="default")
+
+# Create OpenAI client and send message
+client = openai.OpenAI()
+messages = [{"role": "user", "content": "What is 15 plus 27?"}]
+
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=messages,
+    tools=tools["tools"]
+)
+
+# Handle tool calls
+message = response.choices[0].message
+if message.tool_calls:
+    for tool_call in message.tool_calls:
+        # Execute via gateway
+        result = gateway.execute("openai", {
+            "name": tool_call.function.name,
+            "arguments": tool_call.function.arguments
+        })
+
+        # Add to conversation
+        messages.append(message)
+        messages.append({
+            "role": "tool",
+            "tool_call_id": tool_call.id,
+            "content": str(result)
+        })
+
+    # Get final response
+    final = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages
+    )
+    print(final.choices[0].message.content)
+```
+
+### Client Features
+
+- **Provider-specific methods**: `get_tools(provider, server)` and `execute(provider, call, server)`
+- **Automatic retries**: Configurable retry logic with exponential backoff for transient failures
+- **Type hints**: Full type annotations for better IDE support
+- **Error handling**: Clear error messages from gateway responses
+- **Legacy support**: `call_tool()`, `tools()`, `logs()`, and `health()` methods still available
+
+### API Reference
+
+```python
+# Initialize client
+client = GatewayClient(
+    base_url="http://localhost:8787",
+    timeout=60.0,          # Request timeout in seconds
+    max_retries=3,         # Maximum retry attempts
+    retry_delay=1.0,       # Initial retry delay
+    retry_backoff=2.0      # Exponential backoff multiplier
+)
+
+# Get tools in provider-specific format
+tools = client.get_tools(
+    provider="gemini",     # "gemini", "openai", or "xai"
+    server="default"       # Optional server name
+)
+
+# Execute tool call
+result = client.execute(
+    provider="gemini",     # "gemini", "openai", or "xai"
+    call={                 # Provider-specific format
+        "name": "add",
+        "args": {"a": 1, "b": 2}  # Gemini uses "args" (object)
+        # "arguments": '{"a": 1, "b": 2}'  # OpenAI/xAI use "arguments" (JSON string)
+    },
+    server="default"       # Optional server name
+)
+
+# Check health
+status = client.health()
+
+# Get logs
+logs = client.logs(
+    server="default",
+    since="2025-01-14T00:00:00Z",  # Optional ISO 8601 timestamp
+    limit=100
+)
 ```
 
 ## Local Development
