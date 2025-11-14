@@ -221,4 +221,48 @@ describe('gateway endpoints', () => {
     expect(res.body.availableProviders).toContain('gemini')
     expect(res.body.availableProviders).toContain('openai')
   })
+
+  // Context generation endpoint tests
+  it('returns human-readable context for gemini provider', async () => {
+    const res = await request(server).get('/tools/gemini/context').query({ server: 'default' })
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toContain('text/plain')
+    expect(res.text).toContain('# Available Tools')
+    expect(res.text).toContain('**add**')
+    expect(res.text).toContain('**multiply**')
+    expect(res.text).toContain('**get_weather**')
+    expect(res.text).toContain('*Parameters marked with * are required.')
+  })
+
+  it('returns human-readable context for openai provider', async () => {
+    const res = await request(server).get('/tools/openai/context').query({ server: 'default' })
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toContain('text/plain')
+    expect(res.text).toContain('# Available Tools')
+    expect(res.text).toContain('**add**')
+    expect(res.text).toContain('**multiply**')
+  })
+
+  it('returns human-readable context for xai provider', async () => {
+    const res = await request(server).get('/tools/xai/context').query({ server: 'default' })
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toContain('text/plain')
+    expect(res.text).toContain('# Available Tools')
+    expect(res.text).toContain('**add**')
+  })
+
+  it('rejects /tools/:provider/context with unknown provider', async () => {
+    const res = await request(server).get('/tools/unknown-provider/context').query({ server: 'default' })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toContain('Unknown provider')
+    expect(res.body.availableProviders).toContain('gemini')
+    expect(res.body.availableProviders).toContain('openai')
+    expect(res.body.availableProviders).toContain('xai')
+  })
+
+  it('context endpoint defaults to "default" server when not specified', async () => {
+    const res = await request(server).get('/tools/gemini/context')
+    expect(res.status).toBe(200)
+    expect(res.text).toContain('# Available Tools')
+  })
 })

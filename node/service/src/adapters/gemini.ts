@@ -96,6 +96,38 @@ export class GeminiAdapter implements ProviderAdapter {
   }
 
   /**
+   * Generate human-readable context for prompt injection
+   * Formats tool descriptions in a concise, markdown format
+   */
+  formatForContext(mcpTools: MCPTool[]): string {
+    if (!mcpTools || mcpTools.length === 0) {
+      return 'No tools available.'
+    }
+
+    const toolDescriptions = mcpTools.map((tool, index) => {
+      const schema = tool.inputSchema ?? tool.parameters ?? tool.schema ?? {}
+      const properties = schema.properties ?? {}
+      const required = schema.required ?? []
+
+      // Build parameter list
+      const params = Object.entries(properties).map(([name, prop]: [string, any]) => {
+        const isRequired = required.includes(name)
+        const type = prop.type || 'any'
+        const desc = prop.description ? ` - ${prop.description}` : ''
+        const requiredMarker = isRequired ? '*' : ''
+        return `  - ${name}${requiredMarker}: ${type}${desc}`
+      }).join('\n')
+
+      const description = tool.description || `Tool: ${tool.name}`
+      const paramSection = params ? `\n${params}` : '\n  (no parameters)'
+
+      return `${index + 1}. **${tool.name}**\n   ${description}${paramSection}`
+    }).join('\n\n')
+
+    return `# Available Tools\n\n${toolDescriptions}\n\n*Parameters marked with * are required.`
+  }
+
+  /**
    * Sanitize properties to ensure Gemini compatibility
    * - Remove unsupported fields (default, optional, maximum, oneOf)
    * - Recursively process nested objects and arrays

@@ -57,4 +57,12 @@ export interface ProviderAdapter {
    * @returns Provider-specific result format
    */
   formatResult(mcpResult: any): any
+
+  /**
+   * Generate human-readable context for prompt injection
+   * Formats tool descriptions in a concise, context-efficient manner
+   * @param mcpTools Array of MCP tools
+   * @returns Human-readable tool descriptions (plain text or markdown)
+   */
+  formatForContext(mcpTools: MCPTool[]): string
 }

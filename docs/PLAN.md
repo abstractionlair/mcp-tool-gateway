@@ -168,15 +168,15 @@ A translation layer that:
 - E2E tests validate multi-step workflows with state management
 
 ### Phase 3 — Context Generation & Tooling (🚧 IN PROGRESS)
-- [ ] Context generators: format tool descriptions for prompt injection
-- [ ] `/tools/{provider}/context` endpoint (human-readable tool descriptions)
+- [x] Context generators: format tool descriptions for prompt injection ✅ **COMPLETE**
+- [x] `/tools/{provider}/context` endpoint (human-readable tool descriptions) ✅ **COMPLETE**
 - [ ] Schema optimization: concise vs. detailed modes
 - [ ] Tool filtering and grouping (by category, importance, etc.)
 - [x] Multi-server config: JSON/env to register multiple MCP servers ✅ **COMPLETE**
 
-**Status**: Multi-server configuration is production-ready. JSON config file support with validation, mixed transport types, per-server environment variables, and health monitoring. See [docs/CONFIG.md](./CONFIG.md) for details.
+**Status**: Multi-server configuration is production-ready. Context generation endpoint implemented for all providers (Gemini, OpenAI, xAI) with markdown-formatted output optimized for prompt injection. See [docs/CONFIG.md](./CONFIG.md) for multi-server details.
 
-**Goal**: Rich tool metadata and flexible context generation for different use cases. *(Multi-server achieved)*
+**Goal**: Rich tool metadata and flexible context generation for different use cases. *(Multi-server and basic context generation achieved)*
 
 ### Phase 4 — Client Libraries & DX (🚧 IN PROGRESS)
 - [x] Python client with provider-aware methods ✅ **PRODUCTION READY**
@@ -225,9 +225,25 @@ A translation layer that:
   }
   ```
 
-**GET `/tools/{provider}/context?server=name`** (Phase 3)
+**GET `/tools/{provider}/context?server=name`** ✅ **IMPLEMENTED**
 - Returns human-readable tool descriptions for prompt injection
 - Optimized for context window efficiency
+- Returns plain text (markdown format) with tool names, descriptions, and parameters
+- Example response:
+  ```
+  # Available Tools
+
+  1. **query_nodes**
+     Query nodes from the graph
+    - query*: string - Search query
+    - limit: number - Maximum results
+
+  2. **create_node**
+     Create a new node
+    - content*: string - Node content
+
+  *Parameters marked with * are required.
+  ```
 
 ### Generic Endpoints (Foundation - Phase 0)
 
@@ -266,14 +282,14 @@ A translation layer that:
 - Requires MCP dist and base/log paths envs for integration tests
 - **Current test coverage**:
   - Foundation: health, tools list, query_nodes call, ontology→create_node→query_nodes
-  - GeminiAdapter: 21 unit tests (schema translation, sanitization, execution, edge cases)
-  - OpenAIAdapter: 30 unit tests (schema translation, sanitization, execution, edge cases, JSON string parsing)
-  - XAIAdapter: 30 unit tests (schema translation, sanitization, execution, edge cases, JSON string parsing)
+  - GeminiAdapter: 26 unit tests (schema translation, sanitization, execution, edge cases, context generation)
+  - OpenAIAdapter: 33 unit tests (schema translation, sanitization, execution, edge cases, JSON string parsing, context generation)
+  - XAIAdapter: 33 unit tests (schema translation, sanitization, execution, edge cases, JSON string parsing, context generation)
   - ConfigLoader: 18 unit tests (JSON parsing, validation, env vars, transport types, error handling)
-  - API endpoints: 13 integration tests (/tools/gemini, /tools/openai, /execute with validation)
+  - API endpoints: 18 integration tests (/tools/gemini, /tools/openai, /execute with validation, /context endpoints)
   - Multi-server: 11 integration tests (multiple servers, mixed transports, health endpoint, server routing)
   - E2E tests: Gemini (2 tests), OpenAI (2 tests), xAI (2 tests), Ollama (1 test), HTTP transport (2 tests)
-- **Total**: 123 unit/integration tests passing, 9 E2E tests (with API keys)
+- **Total**: 139 unit/integration tests passing, 9 E2E tests (with API keys)
 - **Next**: add `/logs` assertions to unit/integration tests (E2E already verifies logs)
 
 ## Architecture
