@@ -353,6 +353,123 @@ describe('GeminiAdapter', () => {
     })
   })
 
+  describe('formatForContext', () => {
+    it('formats tools with parameters for context', () => {
+      const tools: MCPTool[] = [
+        {
+          name: 'query_nodes',
+          description: 'Query nodes from the graph',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'Search query',
+              },
+              limit: {
+                type: 'number',
+                description: 'Maximum results',
+              },
+            },
+            required: ['query'],
+          },
+        },
+        {
+          name: 'create_node',
+          description: 'Create a new node',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              content: {
+                type: 'string',
+                description: 'Node content',
+              },
+            },
+            required: ['content'],
+          },
+        },
+      ]
+
+      const context = adapter.formatForContext(tools)
+
+      expect(context).toContain('# Available Tools')
+      expect(context).toContain('**query_nodes**')
+      expect(context).toContain('Query nodes from the graph')
+      expect(context).toContain('query*: string - Search query')
+      expect(context).toContain('limit: number - Maximum results')
+      expect(context).toContain('**create_node**')
+      expect(context).toContain('Create a new node')
+      expect(context).toContain('content*: string - Node content')
+      expect(context).toContain('*Parameters marked with * are required.')
+    })
+
+    it('handles tools without parameters', () => {
+      const tools: MCPTool[] = [
+        {
+          name: 'get_status',
+          description: 'Get system status',
+          inputSchema: {
+            type: 'object',
+            properties: {},
+          },
+        },
+      ]
+
+      const context = adapter.formatForContext(tools)
+
+      expect(context).toContain('**get_status**')
+      expect(context).toContain('Get system status')
+      expect(context).toContain('(no parameters)')
+    })
+
+    it('handles empty tool list', () => {
+      const context = adapter.formatForContext([])
+      expect(context).toBe('No tools available.')
+    })
+
+    it('handles tools without descriptions', () => {
+      const tools: MCPTool[] = [
+        {
+          name: 'test_tool',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              param1: { type: 'string' },
+            },
+          },
+        },
+      ]
+
+      const context = adapter.formatForContext(tools)
+
+      expect(context).toContain('**test_tool**')
+      expect(context).toContain('Tool: test_tool')
+    })
+
+    it('formats parameters without descriptions', () => {
+      const tools: MCPTool[] = [
+        {
+          name: 'test_tool',
+          description: 'Test tool',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              param1: { type: 'string' },
+              param2: { type: 'number' },
+            },
+            required: ['param1'],
+          },
+        },
+      ]
+
+      const context = adapter.formatForContext(tools)
+
+      expect(context).toContain('param1*: string')
+      expect(context).toContain('param2: number')
+      expect(context).not.toContain('param1*: string - ')
+    })
+  })
+
   describe('provider name', () => {
     it('has correct provider name', () => {
       expect(adapter.name).toBe('gemini')

@@ -533,6 +533,64 @@ describe('OpenAIAdapter', () => {
     })
   })
 
+  describe('formatForContext', () => {
+    it('formats tools with parameters for context', () => {
+      const tools: MCPTool[] = [
+        {
+          name: 'query_nodes',
+          description: 'Query nodes from the graph',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'Search query',
+              },
+              limit: {
+                type: 'number',
+                description: 'Maximum results',
+              },
+            },
+            required: ['query'],
+          },
+        },
+      ]
+
+      const context = adapter.formatForContext(tools)
+
+      expect(context).toContain('# Available Tools')
+      expect(context).toContain('**query_nodes**')
+      expect(context).toContain('Query nodes from the graph')
+      expect(context).toContain('query*: string - Search query')
+      expect(context).toContain('limit: number - Maximum results')
+      expect(context).toContain('*Parameters marked with * are required.')
+    })
+
+    it('handles tools without parameters', () => {
+      const tools: MCPTool[] = [
+        {
+          name: 'get_status',
+          description: 'Get system status',
+          inputSchema: {
+            type: 'object',
+            properties: {},
+          },
+        },
+      ]
+
+      const context = adapter.formatForContext(tools)
+
+      expect(context).toContain('**get_status**')
+      expect(context).toContain('Get system status')
+      expect(context).toContain('(no parameters)')
+    })
+
+    it('handles empty tool list', () => {
+      const context = adapter.formatForContext([])
+      expect(context).toBe('No tools available.')
+    })
+  })
+
   describe('provider name', () => {
     it('has correct provider name', () => {
       expect(adapter.name).toBe('openai')

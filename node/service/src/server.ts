@@ -110,6 +110,40 @@ app.get('/tools/xai', async (req, res) => {
   }
 })
 
+// Context generation endpoints - human-readable tool descriptions
+app.get('/tools/:provider/context', async (req, res) => {
+  try {
+    const provider = req.params.provider
+    const server = (req.query.server as string | undefined) ?? 'default'
+
+    // Get adapter for provider
+    const adapter = adapters.get(provider)
+    if (!adapter) {
+      return res.status(400).json({
+        error: `Unknown provider: ${provider}`,
+        availableProviders: Array.from(adapters.keys())
+      })
+    }
+
+    // Get tools from MCP server
+    const toolsResponse = await manager.listTools(server)
+
+    // Handle different SDK response formats: { tools: [...] } or [...]
+    const toolsArray = Array.isArray((toolsResponse as any)?.tools)
+      ? (toolsResponse as any).tools
+      : (Array.isArray(toolsResponse) ? toolsResponse : [])
+
+    // Format for context
+    const context = adapter.formatForContext(toolsArray as MCPTool[])
+
+    // Return as plain text for easy copy-paste into prompts
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+    res.send(context)
+  } catch (error: any) {
+    res.status(500).json({ error: String(error?.message ?? error) })
+  }
+})
+
 app.get('/logs', (req, res) => {
   try {
     const server = (req.query.server as string | undefined) ?? 'default'
