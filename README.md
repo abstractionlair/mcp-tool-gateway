@@ -14,6 +14,7 @@ Connects to MCP servers via the official JS client over stdio or HTTP and expose
 - ✅ **OpenAI** (GPT-4, GPT-3.5, etc.) - Full JSON Schema support
 - ✅ **xAI** (Grok models) - Complete implementation
 - ✅ **Python Client Library** - Type-safe client with automatic retries
+- ✅ **TypeScript Client Library** - Full type safety with comprehensive tests
 
 Use any MCP server with these providers today! See usage examples below.
 
@@ -36,7 +37,7 @@ Use any MCP server with these providers today! See usage examples below.
 
 - **Clients**:
   - ✅ Python: `mcp_tool_gateway` (installed from `python/` directory)
-  - TypeScript: `@mcp-tool-gateway/client` (coming soon)
+  - ✅ TypeScript: `@mcp-tool-gateway/client` (available in `ts/client/`)
 
 - **Transport Support**:
   - ✅ stdio (local MCP servers)
@@ -57,6 +58,7 @@ All core functionality is complete and tested:
 - ✅ **Multi-Server Support** - JSON configuration with multiple servers
 - ✅ **E2E Testing** - Validated with real provider APIs
 - ✅ **Python Client** - Production-ready client library
+- ✅ **TypeScript Client** - Production-ready with full type safety
 
 ## Test Quickstart
 
@@ -443,6 +445,181 @@ logs = client.logs(
     limit=100
 )
 ```
+
+## Using the TypeScript Client
+
+The TypeScript client library provides a type-safe interface to the gateway with automatic retries, comprehensive error handling, and full TypeScript support.
+
+### Installation
+
+```bash
+# From the repository
+cd ts/client
+npm install
+npm run build
+
+# Or install in your project (after publishing)
+npm install @mcp-tool-gateway/client
+```
+
+### Quick Example (Gemini)
+
+```typescript
+import { GatewayClient } from '@mcp-tool-gateway/client';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+// Initialize client
+const gateway = new GatewayClient({ baseUrl: 'http://localhost:8787' });
+
+// Get tools in Gemini format
+const tools = await gateway.getTools('gemini', 'default');
+
+// Create Gemini model with tools
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const model = genAI.getGenerativeModel({
+  model: 'gemini-2.0-flash-exp',
+  tools: tools.function_declarations
+});
+
+// Start chat
+const chat = model.startChat();
+let response = await chat.sendMessage('What tasks do I have?');
+
+// Handle function calls
+while (response.functionCalls()?.length > 0) {
+  const functionCalls = response.functionCalls()!;
+
+  // Execute each function call via the gateway
+  const functionResponses = await Promise.all(
+    functionCalls.map(async (fc) => {
+      const result = await gateway.execute('gemini', {
+        name: fc.name,
+        args: fc.args
+      }, 'default');
+
+      return { name: fc.name, response: result };
+    })
+  );
+
+  // Send results back to the model
+  response = await chat.sendMessage(
+    functionResponses.map(fr => ({ functionResponse: fr }))
+  );
+}
+
+console.log(response.text());
+```
+
+### Quick Example (OpenAI)
+
+```typescript
+import { GatewayClient } from '@mcp-tool-gateway/client';
+import OpenAI from 'openai';
+
+// Initialize client with custom retry settings
+const gateway = new GatewayClient({
+  baseUrl: 'http://localhost:8787',
+  timeoutMs: 30000,
+  maxRetries: 5
+});
+
+// Get tools in OpenAI format
+const tools = await gateway.getTools('openai', 'default');
+
+// Create OpenAI client
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Send message with tools
+let messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+  { role: 'user', content: 'What is 15 plus 27?' }
+];
+
+let response = await openai.chat.completions.create({
+  model: 'gpt-4o-mini',
+  messages,
+  tools: tools.tools
+});
+
+// Handle tool calls
+while (response.choices[0].finish_reason === 'tool_calls') {
+  const message = response.choices[0].message;
+  messages.push(message);
+
+  if (message.tool_calls) {
+    for (const toolCall of message.tool_calls) {
+      const result = await gateway.execute('openai', {
+        name: toolCall.function.name,
+        arguments: toolCall.function.arguments
+      }, 'default');
+
+      messages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: JSON.stringify(result)
+      });
+    }
+
+    response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages,
+      tools: tools.tools
+    });
+  }
+}
+
+console.log(response.choices[0].message.content);
+```
+
+### Client Features
+
+- **Type safety**: Full TypeScript support with detailed type definitions
+- **Provider support**: `'gemini' | 'openai' | 'xai'` with type-safe provider selection
+- **Automatic retries**: Configurable retry logic with exponential backoff
+- **Error handling**: Comprehensive error handling with timeout support
+- **Well documented**: JSDoc comments and usage examples
+- **Tested**: 22 unit tests with full coverage
+
+### API Reference
+
+```typescript
+// Initialize client
+const client = new GatewayClient({
+  baseUrl: 'http://localhost:8787',
+  timeoutMs: 60000,       // Request timeout in milliseconds
+  maxRetries: 3,          // Maximum retry attempts
+  retryDelayMs: 1000,     // Initial retry delay
+  retryBackoff: 2.0       // Exponential backoff multiplier
+});
+
+// Get tools in provider-specific format
+const tools = await client.getTools(
+  'gemini',               // 'gemini' | 'openai' | 'xai'
+  'default'               // Optional server name
+);
+
+// Execute tool call
+const result = await client.execute(
+  'gemini',               // 'gemini' | 'openai' | 'xai'
+  {                       // Provider-specific format
+    name: 'add',
+    args: { a: 1, b: 2 }  // Gemini uses "args" (object)
+    // arguments: '{"a": 1, "b": 2}'  // OpenAI/xAI use "arguments" (JSON string)
+  },
+  'default'               // Optional server name
+);
+
+// Check health
+const status = await client.health();
+
+// Get logs
+const logs = await client.logs(
+  'default',
+  '2025-01-14T00:00:00Z', // Optional ISO 8601 timestamp
+  100
+);
+```
+
+**📖 For complete TypeScript client documentation, see [ts/client/README.md](ts/client/README.md)**
 
 ## Configuration
 
