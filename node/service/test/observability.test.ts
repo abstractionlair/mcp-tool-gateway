@@ -41,6 +41,22 @@ describe('Observability Features', () => {
         expect(response.headers[CORRELATION_ID_HEADER]).toBeDefined()
       }
     })
+
+    it('should maintain separate correlation IDs for concurrent requests', async () => {
+      // Make multiple concurrent requests with different correlation IDs
+      const requests = [
+        request.get('/health').set(CORRELATION_ID_HEADER, 'request-1'),
+        request.get('/health').set(CORRELATION_ID_HEADER, 'request-2'),
+        request.get('/health').set(CORRELATION_ID_HEADER, 'request-3'),
+      ]
+
+      const responses = await Promise.all(requests)
+
+      // Each response should have its own correlation ID
+      expect(responses[0].headers[CORRELATION_ID_HEADER]).toBe('request-1')
+      expect(responses[1].headers[CORRELATION_ID_HEADER]).toBe('request-2')
+      expect(responses[2].headers[CORRELATION_ID_HEADER]).toBe('request-3')
+    })
   })
 
   describe('Metrics Endpoint', () => {
