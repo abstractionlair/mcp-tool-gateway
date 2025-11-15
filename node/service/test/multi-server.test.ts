@@ -135,7 +135,7 @@ describe('multi-server configuration', () => {
 
   it('returns error for unknown server', async () => {
     const res = await request(server).get('/tools').query({ server: 'nonexistent' })
-    expect(res.status).toBe(500)
+    expect(res.status).toBe(400)
     expect(res.body.error).toContain('Unknown server: nonexistent')
     expect(res.body.error).toContain('Available servers:')
   })

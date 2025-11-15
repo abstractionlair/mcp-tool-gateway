@@ -50,6 +50,11 @@ Use any MCP server with these providers today! See usage examples below.
   - ✅ Per-server environment variables and logging
   - ✅ Health monitoring for all configured servers
 
+- **Error Handling**:
+  - ✅ Consistent HTTP status codes (4xx for client errors, 5xx for server errors)
+  - ✅ Detailed error messages with context
+  - ✅ Comprehensive test coverage for error scenarios
+
 ## Status
 
 All core functionality is complete and tested:

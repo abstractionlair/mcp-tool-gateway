@@ -273,6 +273,32 @@ A translation layer that:
 **GET `/health`**
 - Response: `{ ok: true, servers: [{ name, transport, connected }], serverCount, configSource }`
 
+### Error Handling
+
+All endpoints follow consistent HTTP status code semantics:
+
+**4xx Client Errors** - Invalid requests from the client:
+- **400 Bad Request**:
+  - Unknown server name (e.g., `?server=nonexistent`)
+  - Unknown provider name (e.g., `provider: "invalid"`)
+  - Missing required fields (e.g., missing `provider` or `call` in `/execute`)
+  - Invalid request format or parameters
+  - Configuration errors (missing `url` for HTTP transport, missing `command` for stdio)
+
+**5xx Server Errors** - Internal server or MCP failures:
+- **500 Internal Server Error**:
+  - MCP connection failures
+  - MCP tool execution failures
+  - Unexpected errors during request processing
+
+**Error Response Format**:
+```json
+{
+  "error": "Error message describing what went wrong",
+  "availableProviders": ["gemini", "openai", "xai"]  // Only for unknown provider errors
+}
+```
+
 ## Configuration
 
 **Primary method (multi-server):**
@@ -299,12 +325,13 @@ A translation layer that:
   - OpenAIAdapter: 33 unit tests (schema translation, sanitization, execution, edge cases, JSON string parsing, context generation)
   - XAIAdapter: 33 unit tests (schema translation, sanitization, execution, edge cases, JSON string parsing, context generation)
   - ConfigLoader: 18 unit tests (JSON parsing, validation, env vars, transport types, error handling)
-  - API endpoints: 18 integration tests (/tools/gemini, /tools/openai, /execute with validation, /context endpoints)
+  - API endpoints: 24 integration tests (/tools/gemini, /tools/openai, /execute with validation, /context endpoints, error handling)
   - Multi-server: 11 integration tests (multiple servers, mixed transports, health endpoint, server routing)
   - E2E tests: Gemini (2 tests), OpenAI (2 tests), xAI (2 tests), Ollama (1 test), HTTP transport (2 tests)
-- **Observability**: 18 unit tests (correlation IDs, metrics, logging, SSE streaming)
-- **Total**: 157 unit/integration tests passing, 9 E2E tests (with API keys)
-- **Coverage**: All core features, providers, transports, and observability
+- **Observability**: 19 unit tests (correlation IDs, metrics, logging, SSE streaming)
+- **Error Handling**: 6 integration tests (400 vs 500 status codes across all endpoints)
+- **Total**: 164 unit/integration tests passing, 9 E2E tests (with API keys)
+- **Coverage**: All core features, providers, transports, observability, and error handling
 
 ## Architecture
 
@@ -424,8 +451,10 @@ print(response.text)
 11. ✅ **Correlation context hardening** - Replaced Map-based storage with AsyncLocalStorage for proper async-safe correlation ID tracking
 12. ✅ **Test robustness** - Fixed flaky observability timing tests for stable CI/CD
 
+### Completed Enhancements
+1. ✅ **HTTP error semantics** - Audited all endpoints to return 4xx for client errors (e.g., unknown `server`, malformed requests, validation failures) and 5xx for genuine server faults. Added comprehensive tests and documentation.
+
 ### Up Next
-1. **HTTP error semantics** - Audit endpoints to return 4xx for client errors (e.g., unknown `server`, malformed requests, validation failures) and reserve 5xx for genuine server faults; update tests and docs to match.
-2. **Log reading behavior and performance** - Decouple `/logs` from active MCP connections (use configured `logPath` even before a server is connected), and avoid full synchronous reads of large log files by switching to streaming or bounded reads.
-3. **MCP client lifecycle controls** - Add explicit shutdown/cleanup for `McpClientManager` so long‑running deployments can recycle or close MPC transports and child processes cleanly.
-4. **Client API polish** - Align TypeScript `HealthStatus` types with the actual `/health` response shape (name, transport, connected, configSource) and add optional correlation ID header support in both TS and Python clients for cross‑service tracing.
+1. **Log reading behavior and performance** - Decouple `/logs` from active MCP connections (use configured `logPath` even before a server is connected), and avoid full synchronous reads of large log files by switching to streaming or bounded reads.
+2. **MCP client lifecycle controls** - Add explicit shutdown/cleanup for `McpClientManager` so long‑running deployments can recycle or close MPC transports and child processes cleanly.
+3. **Client API polish** - Align TypeScript `HealthStatus` types with the actual `/health` response shape (name, transport, connected, configSource) and add optional correlation ID header support in both TS and Python clients for cross‑service tracing.
