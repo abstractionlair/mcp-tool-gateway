@@ -46,7 +46,7 @@ A translation layer that:
 - ✅ **OpenAI support** - **PRODUCTION READY** (full JSON Schema support)
 - ✅ **xAI support** - **PRODUCTION READY** (complete implementation)
 - ✅ **Multi-server support** with clean configuration - **COMPLETE** (Phase 3)
-- 🚧 **Context generators** for inserting tool descriptions into prompts - **PLANNED** (Phase 3)
+- ✅ **Context generators** for inserting tool descriptions into prompts - **COMPLETE** (Phase 3)
 
 ## Roadmap (Phases)
 
@@ -423,6 +423,9 @@ print(response.text)
 10. ✅ **Provider registry** - Extensible pattern for adding new providers
 
 ### Up Next
-1. **Provider auto-detection** - Detect provider from request format
-2. **Multi-server config** - Support multiple MCP servers in parallel
-3. **Enhanced error handling** - Provider-specific error formatting
+1. **Correlation context hardening** - Replace the in-memory `Map` in `CorrelationContext` with `AsyncLocalStorage` (or equivalent) to ensure correlation IDs are safely scoped per request across asynchronous work.
+2. **HTTP error semantics** - Audit endpoints to return 4xx for client errors (e.g., unknown `server`, malformed requests, validation failures) and reserve 5xx for genuine server faults; update tests and docs to match.
+3. **Log reading behavior and performance** - Decouple `/logs` from active MCP connections (use configured `logPath` even before a server is connected), and avoid full synchronous reads of large log files by switching to streaming or bounded reads.
+4. **MCP client lifecycle controls** - Add explicit shutdown/cleanup for `McpClientManager` so long‑running deployments can recycle or close MPC transports and child processes cleanly.
+5. **Client API polish** - Align TypeScript `HealthStatus` types with the actual `/health` response shape (name, transport, connected, configSource) and add optional correlation ID header support in both TS and Python clients for cross‑service tracing.
+6. **Test and CI robustness** - Ensure observability and gateway tests are stable across supported Node LTS versions (18/20) and common environments, including the existing timing expectations in `observability.test.ts`.

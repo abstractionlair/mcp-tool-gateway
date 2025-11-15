@@ -12,7 +12,7 @@
  *
  * Requirements:
  * - XAI_API_KEY environment variable must be set
- * - Uses grok-1.5-flash for cost efficiency
+ * - Uses grok-4-fast for cost efficiency
  *
  * To run:
  * XAI_API_KEY=your_key npm test -- xai-e2e.test.ts
