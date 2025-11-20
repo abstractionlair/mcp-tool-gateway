@@ -68,6 +68,25 @@ function parseTool(server: string | undefined, tool: string): { server: string, 
   return { server, tool }
 }
 
+/**
+ * Determine if an error is a client error (4xx) or server error (5xx).
+ * Returns the appropriate HTTP status code.
+ */
+function getErrorStatusCode(error: any): number {
+  const message = String(error?.message ?? error)
+
+  // Client errors (400 Bad Request)
+  if (message.includes('Unknown server:')) return 400
+  if (message.includes('Unknown provider:')) return 400
+  if (message.includes('server is required')) return 400
+  if (message.includes('Missing or invalid')) return 400
+  if (message.includes('requires url field')) return 400
+  if (message.includes('requires command field')) return 400
+
+  // Server errors (500 Internal Server Error)
+  return 500
+}
+
 app.get('/health', (_req, res) => {
   const servers = manager.getServerHealth()
   res.json({
@@ -84,7 +103,8 @@ app.get('/tools', async (req, res) => {
     const tools = await manager.listTools(server)
     res.json(tools)
   } catch (error: any) {
-    res.status(500).json({ error: String(error?.message ?? error) })
+    const statusCode = getErrorStatusCode(error)
+    res.status(statusCode).json({ error: String(error?.message ?? error) })
   }
 })
 
@@ -102,7 +122,8 @@ app.get('/tools/gemini', async (req, res) => {
     const geminiTools = geminiAdapter.translateAllTools(toolsArray as MCPTool[])
     res.json(geminiTools)
   } catch (error: any) {
-    res.status(500).json({ error: String(error?.message ?? error) })
+    const statusCode = getErrorStatusCode(error)
+    res.status(statusCode).json({ error: String(error?.message ?? error) })
   }
 })
 
@@ -120,7 +141,8 @@ app.get('/tools/openai', async (req, res) => {
     const openaiTools = openaiAdapter.translateAllTools(toolsArray as MCPTool[])
     res.json(openaiTools)
   } catch (error: any) {
-    res.status(500).json({ error: String(error?.message ?? error) })
+    const statusCode = getErrorStatusCode(error)
+    res.status(statusCode).json({ error: String(error?.message ?? error) })
   }
 })
 
@@ -138,7 +160,8 @@ app.get('/tools/xai', async (req, res) => {
     const xaiTools = xaiAdapter.translateAllTools(toolsArray as MCPTool[])
     res.json(xaiTools)
   } catch (error: any) {
-    res.status(500).json({ error: String(error?.message ?? error) })
+    const statusCode = getErrorStatusCode(error)
+    res.status(statusCode).json({ error: String(error?.message ?? error) })
   }
 })
 
@@ -172,7 +195,8 @@ app.get('/tools/:provider/context', async (req, res) => {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
     res.send(context)
   } catch (error: any) {
-    res.status(500).json({ error: String(error?.message ?? error) })
+    const statusCode = getErrorStatusCode(error)
+    res.status(statusCode).json({ error: String(error?.message ?? error) })
   }
 })
 
@@ -213,7 +237,8 @@ app.get('/logs', (req, res) => {
     }
   } catch (error: any) {
     logger.error('Failed to read logs', { error: String(error?.message ?? error) })
-    res.status(500).json({ error: String(error?.message ?? error) })
+    const statusCode = getErrorStatusCode(error)
+    res.status(statusCode).json({ error: String(error?.message ?? error) })
   }
 })
 
@@ -225,7 +250,8 @@ app.get('/metrics', (req, res) => {
     res.json(snapshot)
   } catch (error: any) {
     logger.error('Failed to get metrics', { error: String(error?.message ?? error) })
-    res.status(500).json({ error: String(error?.message ?? error) })
+    const statusCode = getErrorStatusCode(error)
+    res.status(statusCode).json({ error: String(error?.message ?? error) })
   }
 })
 
@@ -256,7 +282,8 @@ app.post('/call_tool', async (req, res) => {
       error: String(error?.message ?? error),
     })
 
-    res.status(500).json({ error: String(error?.message ?? error) })
+    const statusCode = getErrorStatusCode(error)
+    res.status(statusCode).json({ error: String(error?.message ?? error) })
   }
 })
 
@@ -317,7 +344,8 @@ app.post('/execute', async (req, res) => {
       error: String(error?.message ?? error),
     })
 
-    res.status(500).json({ error: String(error?.message ?? error) })
+    const statusCode = getErrorStatusCode(error)
+    res.status(statusCode).json({ error: String(error?.message ?? error) })
   }
 })
 

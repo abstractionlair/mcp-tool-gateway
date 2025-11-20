@@ -265,4 +265,49 @@ describe('gateway endpoints', () => {
     expect(res.status).toBe(200)
     expect(res.text).toContain('# Available Tools')
   })
+
+  // Error status code tests
+  it('returns 400 for unknown server in /tools/gemini', async () => {
+    const res = await request(server).get('/tools/gemini').query({ server: 'nonexistent' })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toContain('Unknown server')
+  })
+
+  it('returns 400 for unknown server in /tools/openai', async () => {
+    const res = await request(server).get('/tools/openai').query({ server: 'nonexistent' })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toContain('Unknown server')
+  })
+
+  it('returns 400 for unknown server in /tools/xai', async () => {
+    const res = await request(server).get('/tools/xai').query({ server: 'nonexistent' })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toContain('Unknown server')
+  })
+
+  it('returns 400 for unknown server in /tools/:provider/context', async () => {
+    const res = await request(server).get('/tools/gemini/context').query({ server: 'nonexistent' })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toContain('Unknown server')
+  })
+
+  it('returns 400 for unknown server in /call_tool', async () => {
+    const res = await request(server)
+      .post('/call_tool')
+      .send({ server: 'nonexistent', tool: 'add', arguments: { a: 1, b: 2 } })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toContain('Unknown server')
+  })
+
+  it('returns 400 for unknown server in /execute', async () => {
+    const res = await request(server)
+      .post('/execute')
+      .send({
+        provider: 'gemini',
+        server: 'nonexistent',
+        call: { name: 'add', args: { a: 1, b: 2 } }
+      })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toContain('Unknown server')
+  })
 })
