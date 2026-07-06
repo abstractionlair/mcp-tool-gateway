@@ -11,7 +11,7 @@
     "start": "node dist/server.js",
     "test": "vitest run",
     "test:e2e": "npm run build:test-server && vitest run gemini-e2e.test.ts",
-    "test:unit": "vitest run --exclude '**/*e2e*.test.ts'"
+    "test:unit": "npm run build:test-server && vitest run --exclude '**/*e2e*.test.ts'"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "*",

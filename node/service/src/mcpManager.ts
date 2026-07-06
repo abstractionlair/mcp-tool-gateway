@@ -1,5 +1,5 @@
 import './env.js'
-import { ReadStream, createReadStream, existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 // Note: These imports require @modelcontextprotocol/sdk at runtime
@@ -142,10 +142,7 @@ export class McpClientManager {
     const h = this.servers.get(serverName)
     const logPath = h?.spec.logPath
     if (!logPath || !existsSync(logPath)) return []
-    const data = createReadStream(resolve(logPath), { encoding: 'utf-8' })
-    // Simple synchronous read via fs not stream to keep it minimal here
-    data.close()
-    const text = require('node:fs').readFileSync(logPath, 'utf-8') as string
+    const text = readFileSync(resolve(logPath), 'utf-8')
     const lines = text.split(/\r?\n/).filter(Boolean)
     const selected = lines.slice(-limit)
     const parsed: unknown[] = []

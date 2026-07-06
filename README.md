@@ -440,8 +440,9 @@ node/service/
       gemini.ts
       openai.ts
       xai.ts
-    gateway.ts          # Core HTTP server + MCP client
-    index.ts            # Entry point
+    server.ts           # Entry point: HTTP server + MCP client wiring
+    config.ts           # Server spec loading + env fallback
+    mcpManager.ts       # MCP client lifecycle (stdio/HTTP) + call logging
   tests/
     unit/               # Adapter unit tests
     integration/        # Gateway integration tests
@@ -455,7 +456,8 @@ docs/                   # Documentation
 
 ### Key Files
 
-- `gateway.ts`: HTTP server, MCP client connection, endpoint handlers
+- `server.ts`: Entry point — HTTP server, MCP client connection, endpoint handlers
+- `mcpManager.ts`: MCP client lifecycle (stdio/HTTP transports), tool dispatch, call logging
 - `adapters/*.ts`: Schema translation logic for each provider
 - `mcp-gateway-config.json`: Server configuration (not in repo)
 - `.env`: API keys for E2E tests (gitignored)
