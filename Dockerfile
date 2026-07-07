@@ -35,6 +35,9 @@ RUN mkdir -p /app/logs /app/config
 ENV NODE_ENV=production
 ENV PORT=8787
 ENV LOG_LEVEL=info
+# Inside a container the server must bind all interfaces for published ports
+# to work; restrict exposure at the port-publish level (see docker-compose.yml)
+ENV HOST=0.0.0.0
 
 # Expose port
 EXPOSE 8787

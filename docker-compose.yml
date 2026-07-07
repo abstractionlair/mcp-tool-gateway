@@ -7,11 +7,16 @@ services:
       dockerfile: Dockerfile
     container_name: mcp-tool-gateway
     ports:
-      - "8787:8787"
+      # Publish to the host's loopback only: the gateway has no built-in
+      # authentication, so exposing it on the network would let any peer
+      # invoke configured MCP tools. Change to "8787:8787" only behind a
+      # reverse proxy or firewall that adds authentication.
+      - "127.0.0.1:8787:8787"
     environment:
       # Server configuration
       - NODE_ENV=production
       - PORT=8787
+      - HOST=0.0.0.0  # bind all interfaces inside the container (required for the published port)
       - LOG_LEVEL=info
 
       # Optional: Use environment variable configuration for single server

@@ -61,7 +61,7 @@ npm install
 npm run dev
 ```
 
-Gateway runs on `http://localhost:8787`.
+Gateway runs on `http://localhost:8787` (loopback only by default — see [Security](#security)).
 
 ### 3. Test
 
@@ -472,6 +472,22 @@ docs/                   # Documentation
 - [python/README.md](python/README.md) - Python client API reference
 - [ts/client/README.md](ts/client/README.md) - TypeScript client API reference
 - [AGENTS.md](AGENTS.md) - Agent specialization areas
+
+## Security
+
+The gateway has **no built-in authentication**: anyone who can reach it can
+discover and invoke every tool on the configured MCP servers, and `/logs` can
+expose tool arguments and results. Treat network reachability as full access.
+
+- **Default bind is loopback.** The server listens on `127.0.0.1` unless you
+  set `HOST` explicitly (e.g. `HOST=0.0.0.0` to accept external connections).
+- **Docker:** the image sets `HOST=0.0.0.0` (required for published ports),
+  and `docker-compose.yml` publishes the port to the host's loopback only
+  (`127.0.0.1:8787:8787`). Change that mapping only if something in front of
+  the gateway (reverse proxy, firewall) enforces authentication.
+- **Non-local exposure:** put an authenticating reverse proxy in front, and
+  prefer allow-listing the specific MCP servers/tools you need. Be especially
+  careful with MCP servers that touch the filesystem or run commands.
 
 ## Limitations
 

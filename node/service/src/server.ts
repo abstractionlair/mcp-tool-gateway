@@ -417,8 +417,12 @@ app.post('/execute', async (req, res) => {
 export { app }
 
 if (process.env.NODE_ENV !== 'test') {
-  const port = process.env.PORT || 8787
-  app.listen(port, () => {
-    console.log(`mcp-tool-gateway listening on :${port}`)
+  const port = Number(process.env.PORT || 8787)
+  // The gateway has no built-in authentication, so bind loopback-only by
+  // default. Set HOST=0.0.0.0 explicitly (the Docker image does) to accept
+  // connections from other machines — see the Security section in README.md.
+  const host = process.env.HOST || '127.0.0.1'
+  app.listen(port, host, () => {
+    console.log(`mcp-tool-gateway listening on ${host}:${port}`)
   })
 }
