@@ -72,8 +72,21 @@ function parseTool(server: string | undefined, tool: string): { server: string, 
  * Determine if an error is a client error (4xx) or server error (5xx).
  * Returns the appropriate HTTP status code.
  */
+// JSON-RPC error codes used by MCP (@modelcontextprotocol/sdk ErrorCode)
+const JSONRPC_INVALID_REQUEST = -32600
+const JSONRPC_METHOD_NOT_FOUND = -32601
+const JSONRPC_INVALID_PARAMS = -32602
+
 function getErrorStatusCode(error: any): number {
   const message = String(error?.message ?? error)
+
+  // MCP protocol errors carry a JSON-RPC code; invalid params / invalid
+  // request / method-not-found mean the caller sent a bad request, so they
+  // must map to 4xx (clients treat 5xx as retryable — see executeWithRetry).
+  const code = typeof error?.code === 'number' ? error.code : undefined
+  if (code === JSONRPC_INVALID_PARAMS || code === JSONRPC_INVALID_REQUEST || code === JSONRPC_METHOD_NOT_FOUND) {
+    return 400
+  }
 
   // Client errors (400 Bad Request)
   if (message.includes('Unknown server:')) return 400
@@ -82,6 +95,9 @@ function getErrorStatusCode(error: any): number {
   if (message.includes('Missing or invalid')) return 400
   if (message.includes('requires url field')) return 400
   if (message.includes('requires command field')) return 400
+  // Tool input-validation errors surfaced by MCP servers
+  if (message.includes('Invalid arguments')) return 400
+  if (message.includes('Unknown tool')) return 400
 
   // Server errors (500 Internal Server Error)
   return 500
