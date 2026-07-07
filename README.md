@@ -234,9 +234,9 @@ pip install ./python
 Usage:
 
 ```python
-from mcp_tool_gateway import MCPToolGatewayClient
+from mcp_tool_gateway import GatewayClient
 
-client = MCPToolGatewayClient("http://localhost:8787")
+client = GatewayClient("http://localhost:8787")
 
 # Get tools for a provider
 tools = client.get_tools("gemini", server="default")
@@ -270,9 +270,9 @@ npm install @mcp-tool-gateway/client
 Usage:
 
 ```typescript
-import { MCPToolGatewayClient } from '@mcp-tool-gateway/client';
+import { GatewayClient } from '@mcp-tool-gateway/client';
 
-const client = new MCPToolGatewayClient('http://localhost:8787');
+const client = new GatewayClient('http://localhost:8787');
 
 // Get tools for a provider
 const tools = await client.getTools('gemini', 'default');
