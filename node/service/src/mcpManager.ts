@@ -12,6 +12,9 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { CallToolResultSchema, ListToolsResultSchema } from '@modelcontextprotocol/sdk/types.js'
 // Removed graph-memory-specific local runner to keep gateway provider-agnostic
 
 export type TransportType = 'stdio' | 'http'
@@ -93,49 +96,38 @@ export class McpClientManager {
 
   async callTool(serverName: string, tool: string, args: unknown): Promise<unknown> {
     const h = await this.ensure(serverName)
-    // Try multiple call paths to accommodate SDK variations
-    const errors: string[] = []
-    try {
-      if (typeof h.client.callTool === 'function') {
-        // Some SDK builds accept an object param
-        return await h.client.callTool({ name: tool, arguments: args })
-      }
-    } catch (e: any) { errors.push(String(e?.message ?? e)) }
-    try {
-      if (typeof h.client.callTool === 'function') {
-        // Others accept (name, arguments)
-        return await h.client.callTool(tool, args)
-      }
-    } catch (e: any) { errors.push(String(e?.message ?? e)) }
-    try {
-      const timeoutOpts = { timeout: 1000 }
-      if (typeof h.client.request === 'function') {
-        return await h.client.request({ method: 'tools/call', params: { name: tool, arguments: args } }, undefined, timeoutOpts)
-      }
-    } catch (e: any) { errors.push(String(e?.message ?? e)) }
-    throw new Error('MCP callTool failed: ' + errors.join(' | '))
+    // Feature-detect the SDK call surface once and use exactly one call path.
+    // Never retry a tool error across call styles: tools/call round-trips to
+    // the server, so a retry can re-execute a non-idempotent tool, and
+    // concatenated shape errors would mask the real cause.
+    if (typeof h.client.callTool === 'function') {
+      // Modern SDK builds accept an object param
+      return await h.client.callTool({ name: tool, arguments: args })
+    }
+    if (typeof h.client.request === 'function') {
+      // Older SDK builds only expose the low-level request API
+      return await h.client.request(
+        { method: 'tools/call', params: { name: tool, arguments: args } },
+        CallToolResultSchema,
+      )
+    }
+    throw new Error('MCP client exposes neither callTool nor request; incompatible SDK build')
   }
 
   async listTools(serverName: string): Promise<unknown> {
     const h = await this.ensure(serverName)
-    const errors: string[] = []
-    const timeoutOpts = { timeout: 1000 }
-    try {
-      if (typeof h.client.listTools === 'function') {
-        return await h.client.listTools()
-      }
-    } catch (e: any) { errors.push(String(e?.message ?? e)) }
-    try {
-      if (typeof h.client.request === 'function') {
-        return await h.client.request({ method: 'tools/list', params: {} }, undefined, timeoutOpts)
-      }
-    } catch (e: any) { errors.push(String(e?.message ?? e)) }
-    try {
-      if (typeof h.client.request === 'function') {
-        return await h.client.request('tools/list', {})
-      }
-    } catch (e: any) { errors.push(String(e?.message ?? e)) }
-    throw new Error('MCP listTools failed: ' + errors.join(' | '))
+    // Same single-path feature detection as callTool: surface the real error
+    // from the one applicable call style instead of a concatenation.
+    if (typeof h.client.listTools === 'function') {
+      return await h.client.listTools()
+    }
+    if (typeof h.client.request === 'function') {
+      return await h.client.request(
+        { method: 'tools/list', params: {} },
+        ListToolsResultSchema,
+      )
+    }
+    throw new Error('MCP client exposes neither listTools nor request; incompatible SDK build')
   }
 
   readLogs(serverName: string, since?: string, limit = 200): unknown[] {
