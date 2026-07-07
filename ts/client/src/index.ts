@@ -142,8 +142,12 @@ export interface LogEntry {
 export interface HealthStatus {
   /** Boolean indicating if service is healthy */
   ok: boolean;
+  /** Number of configured servers */
+  serverCount?: number;
+  /** Where the gateway loaded its configuration from */
+  configSource?: 'file' | 'env';
   /** List of configured servers and their status */
-  servers?: Array<{ name: string; status: string }>;
+  servers?: Array<{ name: string; transport: string; connected: boolean }>;
 }
 
 // ============================================================================

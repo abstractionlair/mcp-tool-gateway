@@ -303,7 +303,9 @@ describe('GatewayClient', () => {
     it('should fetch health status', async () => {
       const mockHealth: HealthStatus = {
         ok: true,
-        servers: [{ name: 'default', status: 'connected' }]
+        serverCount: 1,
+        configSource: 'env',
+        servers: [{ name: 'default', transport: 'stdio', connected: true }]
       };
 
       mockFetch.mockResolvedValueOnce({
