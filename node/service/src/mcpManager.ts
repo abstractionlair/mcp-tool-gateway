@@ -1,5 +1,6 @@
 import './env.js'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
+import { open } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 // Note: These imports require @modelcontextprotocol/sdk at runtime
@@ -130,13 +131,49 @@ export class McpClientManager {
     throw new Error('MCP client exposes neither listTools nor request; incompatible SDK build')
   }
 
-  readLogs(serverName: string, since?: string, limit = 200): unknown[] {
-    const h = this.servers.get(serverName)
-    const logPath = h?.spec.logPath
-    if (!logPath || !existsSync(logPath)) return []
-    const text = readFileSync(resolve(logPath), 'utf-8')
-    const lines = text.split(/\r?\n/).filter(Boolean)
-    const selected = lines.slice(-limit)
+  /**
+   * Resolve the log file path for a connected server, if it has one.
+   */
+  getLogPath(serverName: string): string | undefined {
+    const logPath = this.servers.get(serverName)?.spec.logPath
+    if (!logPath || !existsSync(logPath)) return undefined
+    return resolve(logPath)
+  }
+
+  /**
+   * Read the last `maxLines` lines of a file without loading the whole file:
+   * scan backwards in fixed-size chunks until enough newlines are seen.
+   */
+  private async readLastLines(filePath: string, maxLines: number): Promise<string[]> {
+    const CHUNK_SIZE = 64 * 1024
+    const handle = await open(filePath, 'r')
+    try {
+      const { size } = await handle.stat()
+      let position = size
+      const chunks: Buffer[] = []
+      let newlines = 0
+      while (position > 0 && newlines <= maxLines) {
+        const length = Math.min(CHUNK_SIZE, position)
+        position -= length
+        const buffer = Buffer.alloc(length)
+        await handle.read(buffer, 0, length, position)
+        chunks.unshift(buffer)
+        // Counting newline bytes is safe for UTF-8 (0x0A never occurs inside
+        // a multi-byte sequence); decode only once at the end.
+        for (const byte of buffer) if (byte === 0x0a) newlines++
+      }
+      const text = Buffer.concat(chunks).toString('utf-8')
+      const lines = text.split(/\r?\n/).filter(Boolean)
+      return lines.slice(-maxLines)
+    } finally {
+      await handle.close()
+    }
+  }
+
+  async readLogs(serverName: string, since?: string, limit = 200): Promise<unknown[]> {
+    const logPath = this.getLogPath(serverName)
+    if (!logPath) return []
+    const selected = await this.readLastLines(logPath, limit)
     const parsed: unknown[] = []
     for (const line of selected) {
       try { parsed.push(JSON.parse(line)) } catch { parsed.push({ parse_error: line }) }

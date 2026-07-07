@@ -166,7 +166,7 @@ describeOrSkip('Gemini HTTP Transport E2E Integration', () => {
         const since = req.query.since as string | undefined
         const limit = parseInt((req.query.limit as string) || '200', 10)
 
-        const logs = manager.readLogs(serverName, since, limit)
+        const logs = await manager.readLogs(serverName, since, limit)
         res.json(logs)
       } catch (error: any) {
         res.status(500).json({ error: error.message })

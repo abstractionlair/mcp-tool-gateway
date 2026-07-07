@@ -1,5 +1,6 @@
 import './env.js'
 import express, { Request, Response, NextFunction } from 'express'
+import { open, stat } from 'node:fs/promises'
 import { McpClientManager } from './mcpManager.js'
 import { ConfigLoader } from './config.js'
 import { GeminiAdapter, OpenAIAdapter, XAIAdapter, MCPTool, ProviderAdapter } from './adapters/index.js'
@@ -216,7 +217,7 @@ app.get('/tools/:provider/context', async (req, res) => {
   }
 })
 
-app.get('/logs', (req, res) => {
+app.get('/logs', async (req, res) => {
   try {
     const server = (req.query.server as string | undefined) ?? 'default'
     const since = req.query.since as string | undefined
@@ -230,11 +231,58 @@ app.get('/logs', (req, res) => {
       res.setHeader('Connection', 'keep-alive')
       res.flushHeaders()
 
+      // Capture the current end-of-file BEFORE sending the backlog so no
+      // entry appended in between is lost (a rare duplicate is acceptable
+      // on a diagnostic surface; a gap is not).
+      const logPath = manager.getLogPath(server)
+      let offset = logPath ? (await stat(logPath)).size : 0
+
       // Send initial logs
-      const entries = manager.readLogs(server, since, limit)
+      const entries = await manager.readLogs(server, since, limit)
       for (const entry of entries) {
         res.write(`data: ${JSON.stringify(entry)}\n\n`)
       }
+
+      // Tail the log file: poll for appended bytes and push complete lines
+      // as SSE events.
+      let partial = '' // incomplete trailing line carried between polls
+      let polling = false
+      const poll = setInterval(async () => {
+        if (!logPath || polling) return
+        polling = true
+        try {
+          const { size } = await stat(logPath)
+          if (size < offset) {
+            // File was truncated or rotated; start over from the beginning
+            offset = 0
+            partial = ''
+          }
+          if (size > offset) {
+            const handle = await open(logPath, 'r')
+            try {
+              const length = size - offset
+              const buffer = Buffer.alloc(length)
+              await handle.read(buffer, 0, length, offset)
+              offset = size
+              const text = partial + buffer.toString('utf-8')
+              const lines = text.split(/\r?\n/)
+              partial = lines.pop() ?? ''
+              for (const line of lines) {
+                if (!line) continue
+                let entry: unknown
+                try { entry = JSON.parse(line) } catch { entry = { parse_error: line } }
+                res.write(`data: ${JSON.stringify(entry)}\n\n`)
+              }
+            } finally {
+              await handle.close()
+            }
+          }
+        } catch {
+          // Transient read errors (e.g. mid-rotation); try again next tick
+        } finally {
+          polling = false
+        }
+      }, 1000) // 1 second poll interval
 
       // Keep connection alive and send heartbeats
       const heartbeat = setInterval(() => {
@@ -243,12 +291,13 @@ app.get('/logs', (req, res) => {
 
       // Clean up on close
       req.on('close', () => {
+        clearInterval(poll)
         clearInterval(heartbeat)
         logger.debug('SSE connection closed', { server })
       })
     } else {
       // Regular JSON response
-      const entries = manager.readLogs(server, since, limit)
+      const entries = await manager.readLogs(server, since, limit)
       res.json(entries)
     }
   } catch (error: any) {

@@ -331,6 +331,7 @@ data: {"timestamp":"2025-11-14T19:30:59.123Z","tool":"multiply","input":{"a":3,"
 ### SSE Features
 
 - **Initial logs**: Sends existing logs matching the query parameters
+- **Live tail**: Polls the log file every second and pushes newly appended entries as SSE events (handles truncation/rotation by restarting from the top of the file)
 - **Heartbeats**: Sends heartbeat comments every 30 seconds to keep the connection alive
 - **Auto-cleanup**: Automatically cleans up resources when the client disconnects
 
